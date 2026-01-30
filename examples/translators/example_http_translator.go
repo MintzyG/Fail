@@ -16,7 +16,7 @@ type HTTPResponse struct {
 	Meta        map[string]any         `json:"meta,omitempty"`
 }
 
-// HTTPTranslator converts errors to HTTP responses
+// HTTPTranslator converts registry errors to HTTP responses
 type HTTPTranslator struct {
 	IncludeErrorID  bool
 	IncludeTraces   bool
@@ -25,7 +25,7 @@ type HTTPTranslator struct {
 	CustomStatusMap map[fail.ErrorID]int // Override status codes for specific errors
 }
 
-// HTTPResponseTranslator creates a production-ready HTTP translator
+// Prebuilt production translator
 func HTTPResponseTranslator() *HTTPTranslator {
 	return &HTTPTranslator{
 		IncludeErrorID:  true,
@@ -36,7 +36,7 @@ func HTTPResponseTranslator() *HTTPTranslator {
 	}
 }
 
-// DevelopmentHTTPTranslator creates a translator with all debug info
+// Prebuilt development translator with full debug info
 func DevelopmentHTTPTranslator() *HTTPTranslator {
 	return &HTTPTranslator{
 		IncludeErrorID:  true,
@@ -51,7 +51,17 @@ func (h *HTTPTranslator) Name() string {
 	return "http"
 }
 
-func (h *HTTPTranslator) Translate(err *fail.Error) any {
+func (h *HTTPTranslator) Supports(err *fail.Error) bool {
+	// Only support trusted registry errors
+	return err != nil && err.IsTrusted()
+}
+
+// Translate converts a fail.Error to an HTTPResponse
+func (h *HTTPTranslator) Translate(err *fail.Error) (any, error) {
+	if !h.Supports(err) {
+		return nil, fail.ErrTranslateUnsupportedError.With(err)
+	}
+
 	resp := HTTPResponse{
 		StatusCode: h.getStatusCode(err),
 		Message:    err.Message,
@@ -68,23 +78,18 @@ func (h *HTTPTranslator) Translate(err *fail.Error) any {
 				resp.Traces = traces
 			}
 		}
-
 		if h.IncludeDebug {
 			if debug, ok := err.Meta["debug"].([]string); ok {
 				resp.Debug = debug
 			}
 		}
-
-		// Always include validations if present
 		if validations, ok := err.Meta["validations"].([]fail.ValidationError); ok {
 			resp.Validations = validations
 		}
-
 		// Include remaining meta if enabled
 		if h.IncludeMeta {
 			resp.Meta = make(map[string]any)
 			for k, v := range err.Meta {
-				// Skip already-extracted fields
 				if k == "traces" || k == "debug" || k == "validations" {
 					continue
 				}
@@ -93,20 +98,17 @@ func (h *HTTPTranslator) Translate(err *fail.Error) any {
 		}
 	}
 
-	return resp
+	return resp, nil
 }
 
-// getStatusCode determines the HTTP status code for an error
+// getStatusCode returns the HTTP status code
 func (h *HTTPTranslator) getStatusCode(err *fail.Error) int {
-	// Check custom mapping first
 	if status, exists := h.CustomStatusMap[err.ID]; exists {
 		return status
 	}
 
-	// Infer from error domain (convention-based)
 	domain := err.ID.Domain()
 
-	// Common domains -> status codes
 	switch domain {
 	case "AUTH":
 		return http.StatusUnauthorized
@@ -122,53 +124,36 @@ func (h *HTTPTranslator) getStatusCode(err *fail.Error) int {
 		return http.StatusBadRequest
 	}
 
-	// System errors -> 500
 	if err.IsSystem {
 		return http.StatusInternalServerError
 	}
 
-	// Domain errors default to 400
 	return http.StatusBadRequest
 }
 
-// WithCustomStatus adds a custom status code mapping
-func (h *HTTPTranslator) WithCustomStatus(id fail.ErrorID, statusCode int) *HTTPTranslator {
-	h.CustomStatusMap[id] = statusCode
+// WithCustomStatus adds a custom HTTP status for a specific ErrorID
+func (h *HTTPTranslator) WithCustomStatus(id fail.ErrorID, status int) *HTTPTranslator {
+	h.CustomStatusMap[id] = status
 	return h
 }
 
-// HTTPTranslatorOption is a functional option for HTTPTranslator
+// Functional options
 type HTTPTranslatorOption func(*HTTPTranslator)
 
-// WithErrorID enables/disables error ID in response
 func WithErrorID(include bool) HTTPTranslatorOption {
-	return func(h *HTTPTranslator) {
-		h.IncludeErrorID = include
-	}
+	return func(h *HTTPTranslator) { h.IncludeErrorID = include }
 }
-
-// WithTraces enables/disables traces in response
 func WithTraces(include bool) HTTPTranslatorOption {
-	return func(h *HTTPTranslator) {
-		h.IncludeTraces = include
-	}
+	return func(h *HTTPTranslator) { h.IncludeTraces = include }
 }
-
-// WithDebug enables/disables debug info in response
 func WithDebug(include bool) HTTPTranslatorOption {
-	return func(h *HTTPTranslator) {
-		h.IncludeDebug = include
-	}
+	return func(h *HTTPTranslator) { h.IncludeDebug = include }
 }
-
-// WithMeta enables/disables metadata in response
 func WithMeta(include bool) HTTPTranslatorOption {
-	return func(h *HTTPTranslator) {
-		h.IncludeMeta = include
-	}
+	return func(h *HTTPTranslator) { h.IncludeMeta = include }
 }
 
-// NewHTTPTranslator creates a customized HTTP translator
+// NewHTTPTranslator creates a customized translator
 func NewHTTPTranslator(opts ...HTTPTranslatorOption) *HTTPTranslator {
 	t := HTTPResponseTranslator()
 	for _, opt := range opts {
