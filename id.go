@@ -159,6 +159,68 @@ func (r *IDRegistry) ID(name, domain string, static bool, level int) ErrorID {
 	return r.registeredIDs[name]
 }
 
+// internalID creates a trusted ErrorID in the reserved "FAIL" domain.
+// This is for internal library use only and bypasses the reserved domain restriction.
+// It enforces that the name must start with "FAIL".
+//
+// Example:
+//
+//	var FailRegistryCorrupted = internalID("FailRegistryCorrupted", true, 9)  // 9_FAIL_0000_S
+func internalID(name string, static bool, level int) ErrorID {
+	return globalIDRegistry.internalID(name, static, level)
+}
+
+// internalID creates a new trusted ErrorID for the reserved FAIL domain.
+func (r *IDRegistry) internalID(name string, static bool, level int) ErrorID {
+	domain := reservedDomain
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Validation 1: Name must start with domain (FAIL)
+	if !hasPrefix(name, domain) {
+		panic(fmt.Sprintf(
+			"internal error name '%s' must start with domain '%s' (e.g., %sRegistryCorrupted)",
+			name, domain, domain,
+		))
+	}
+
+	// Validation 2: Name must not already exist
+	if existing, exists := r.registeredIDs[name]; exists {
+		panic(fmt.Sprintf(
+			"internal error name '%s' already registered as %s",
+			name, existing.String(),
+		))
+	}
+
+	// Validation 3: Name must not be too similar to existing names
+	for existingName := range r.registeredIDs {
+		distance := levenshteinDistance(name, existingName)
+		if distance <= 3 {
+			panic(fmt.Sprintf(
+				"internal error name '%s' is too similar to existing name '%s' (distance: %d, must be > 3)",
+				name, existingName, distance,
+			))
+		}
+	}
+
+	// Create the ID
+	id := ErrorID{
+		name:     name,
+		domain:   domain,
+		level:    level,
+		isStatic: static,
+		number:   -1, // temporary
+		trusted:  true,
+	}
+	r.registeredIDs[name] = id
+
+	// Reassign all numbers in the FAIL domain
+	r.renumberDomain(domain)
+
+	return r.registeredIDs[name]
+}
+
 // renumberDomain reassigns numbers to all IDs in a domain to ensure:
 // 1. Static and dynamic have separate sequences
 // 2. Numbers are contiguous (0, 1, 2, 3...)
