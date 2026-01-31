@@ -27,7 +27,7 @@ type Registry struct {
 // Global registry - users can also create their own
 var global = &Registry{
 	errors:         make(map[string]*Error),
-	genericMappers: NewMapperList(true),
+	genericMappers: NewMapperList(),
 	translators:    make(map[string]Translator),
 	hooks:          Hooks{},
 }
@@ -36,7 +36,7 @@ var global = &Registry{
 func NewRegistry() *Registry {
 	return &Registry{
 		errors:         make(map[string]*Error),
-		genericMappers: NewMapperList(true),
+		genericMappers: NewMapperList(),
 		translators:    make(map[string]Translator),
 		hooks:          Hooks{},
 	}
@@ -126,16 +126,12 @@ func (r *Registry) From(err error) *Error {
 	}
 
 	var result *Error
-	defer func() {
-		if result != nil {
-			r.hooks.runFrom(err, result)
-		}
-	}()
 
 	// Already a fail.Error? Return as-is
 	var e *Error
 	if errors.As(err, &e) {
 		result = e
+		r.hooks.runFromSuccess(err, result)
 		return result
 	}
 
@@ -143,9 +139,23 @@ func (r *Registry) From(err error) *Error {
 	mappers := r.genericMappers
 	r.mu.RUnlock()
 
-	// Try each mapper in priority order
-	if fe, ok := mappers.MapToFail(err); ok {
-		result = fe
+	if mappers != nil {
+		// Try each mapper in priority order
+		if fe, ok := mappers.MapToFail(err); ok {
+			result = fe
+			r.hooks.runFromSuccess(err, result)
+			return result
+		}
+	} else {
+		// No mapper registered - create a generic system error
+		result = &Error{
+			ID:       ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
+			Message:  "no mapper is registered, please register one before using From",
+			IsSystem: true,
+			trusted:  false,
+			registry: r,
+		}
+		r.hooks.runFromFail(err)
 		return result
 	}
 
@@ -159,5 +169,6 @@ func (r *Registry) From(err error) *Error {
 		trusted:         false,
 		registry:        r,
 	}
+	r.hooks.runFromFail(err)
 	return result
 }

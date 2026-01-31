@@ -2,7 +2,6 @@ package fail
 
 import (
 	"container/list"
-	"errors"
 	"sync"
 )
 
@@ -42,13 +41,9 @@ type MapperList struct {
 }
 
 // NewMapperList creates a new MapperList. If includeDefault is true, adds the default mapper with priority -1
-func NewMapperList(includeDefault bool) *MapperList {
+func NewMapperList() *MapperList {
 	ml := &MapperList{
 		mappers: list.New(),
-	}
-
-	if includeDefault {
-		ml.Add(&defaultMapper{}) // default mapper has priority -1
 	}
 
 	return ml
@@ -120,25 +115,4 @@ func (ml *MapperList) MapFromFail(err *Error) (error, bool) {
 		}
 	}
 	return nil, false
-}
-
-type defaultMapper struct{}
-
-func (d *defaultMapper) Name() string  { return "default" }
-func (d *defaultMapper) Priority() int { return -1 }
-func (d *defaultMapper) Map(err error) (error, bool) {
-	if err == nil {
-		return nil, false
-	}
-	return err, true // returns the error as-is
-}
-func (d *defaultMapper) MapToFail(err error) (*Error, bool) {
-	var fe *Error
-	if errors.As(err, &fe) {
-		return fe, true
-	}
-	return New(UnknownError).With(err), true // Wrap unknown error
-}
-func (d *defaultMapper) MapFromFail(err *Error) (error, bool) {
-	return errors.New(err.Message), true
 }

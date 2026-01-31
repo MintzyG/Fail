@@ -14,7 +14,8 @@ const (
 	HookTrace
 	HookMap
 	HookWrap
-	HookFrom
+	HookFromFail
+	HookFromSuccess
 	HookForm
 	HookTranslate
 	HookMatch
@@ -23,16 +24,17 @@ const (
 // Hooks manages lifecycle callbacks for errors
 // Access via Registry.Hooks
 type Hooks struct {
-	mu          sync.RWMutex
-	onCreate    []func(*Error, map[string]any)
-	onLog       []func(*Error, map[string]any)
-	onTrace     []func(*Error, map[string]any)
-	OnMap       []func(*Error, map[string]any)
-	onWrap      []func(*Error, error)
-	onFrom      []func(error, *Error)
-	onForm      []func(ErrorID, *Error)
-	onTranslate []func(*Error, map[string]any)
-	onMatch     []func(*Error, map[string]any)
+	mu            sync.RWMutex
+	onCreate      []func(*Error, map[string]any)
+	onLog         []func(*Error, map[string]any)
+	onTrace       []func(*Error, map[string]any)
+	OnMap         []func(*Error, map[string]any)
+	onWrap        []func(*Error, error)
+	onFromFail    []func(error)
+	onFromSuccess []func(error, *Error)
+	onForm        []func(ErrorID, *Error)
+	onTranslate   []func(*Error, map[string]any)
+	onMatch       []func(*Error, map[string]any)
 }
 
 // Frame represents a single stack frame for error traces
@@ -123,13 +125,22 @@ func (h *Hooks) On(t HookType, fn any) {
 		h.onWrap = append(h.onWrap, f)
 		h.mu.Unlock()
 
-	case HookFrom:
-		f, ok := fn.(func(error, *Error))
+	case HookFromFail:
+		f, ok := fn.(func(error))
 		if !ok {
-			panic(fmt.Sprintf("HookFrom requires func(error, *Error), got %T", fn))
+			panic(fmt.Sprintf("HookFromFail requires func(error), got %T", fn))
 		}
 		h.mu.Lock()
-		h.onFrom = append(h.onFrom, f)
+		h.onFromFail = append(h.onFromFail, f)
+		h.mu.Unlock()
+
+	case HookFromSuccess:
+		f, ok := fn.(func(error, *Error))
+		if !ok {
+			panic(fmt.Sprintf("HookFromSuccess requires func(error), got %T", fn))
+		}
+		h.mu.Lock()
+		h.onFromSuccess = append(h.onFromSuccess, f)
 		h.mu.Unlock()
 
 	case HookForm:
@@ -210,9 +221,18 @@ func (h *Hooks) runWrap(wrapper *Error, wrapped error) {
 	}
 }
 
-func (h *Hooks) runFrom(original error, converted *Error) {
+func (h *Hooks) runFromFail(original error) {
 	h.mu.RLock()
-	hooks := h.onFrom
+	hooks := h.onFromFail
+	h.mu.RUnlock()
+	for _, fn := range hooks {
+		fn(original)
+	}
+}
+
+func (h *Hooks) runFromSuccess(original error, converted *Error) {
+	h.mu.RLock()
+	hooks := h.onFromSuccess
 	h.mu.RUnlock()
 	for _, fn := range hooks {
 		fn(original, converted)
@@ -253,7 +273,8 @@ func OnLog(fn func(*Error, map[string]any))       { On(HookLog, fn) }
 func OnTrace(fn func(*Error, map[string]any))     { On(HookTrace, fn) }
 func OnMap(fn func(*Error, map[string]any))       { On(HookMap, fn) }
 func OnWrap(fn func(*Error, error))               { On(HookWrap, fn) }
-func OnFrom(fn func(error, *Error))               { On(HookFrom, fn) }
+func OnFromFail(fn func(error, *Error))           { On(HookFromFail, fn) }
+func OnFromSuccess(fn func(error, *Error))        { On(HookFromSuccess, fn) }
 func OnForm(fn func(ErrorID, *Error))             { On(HookForm, fn) }
 func OnTranslate(fn func(*Error, map[string]any)) { On(HookTranslate, fn) }
 func OnMatch(fn func(*Error, map[string]any))     { On(HookMatch, fn) }
