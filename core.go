@@ -113,6 +113,20 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("[%s] %s", e.ID.String(), msg)
 }
 
+func (e *Error) Dump() map[string]any {
+	return map[string]any{
+		"id":               e.ID,
+		"message":          e.Message,
+		"internal_message": e.InternalMessage,
+		"cause":            e.Cause,
+		"is_system":        e.IsSystem,
+		"args":             e.Args,
+		"locale":           e.Locale,
+		"meta":             e.Meta,
+		"is_trusted":       e.trusted,
+	}
+}
+
 // Unwrap implements error unwrapping for errors.Is/As
 func (e *Error) Unwrap() error {
 	if e.Cause != nil {
