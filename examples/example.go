@@ -12,30 +12,30 @@ import (
 
 // Auth domain errors
 var (
-	AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false, 0)
-	AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true, 0)
-	AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true, 0)
-	AuthTokenInvalid       = fail.ID("AuthTokenInvalid", "AUTH", false, 0)
-	AuthUserNotFound       = fail.ID("AuthUserNotFound", "AUTH", true, 0)
+	AuthValidationFailed   = fail.ID(0, "AUTH", 0, false, "AuthValidationFailed")  // 0_AUTH_0000_D
+	AuthInvalidCredentials = fail.ID(0, "AUTH", 1, true, "AuthInvalidCredentials") // 0_AUTH_0001_S
+	AuthTokenExpired       = fail.ID(0, "AUTH", 2, true, "AuthTokenExpired")       // 0_AUTH_0002_S
+	AuthTokenInvalid       = fail.ID(0, "AUTH", 3, false, "AuthTokenInvalid")      // 0_AUTH_0003_D
+	AuthUserNotFound       = fail.ID(0, "AUTH", 4, true, "AuthUserNotFound")       // 0_AUTH_0004_S
 )
 
 // User domain errors
 var (
-	UserEmailExists      = fail.ID("UserEmailExists", "USER", true, 0)
-	UserValidationFailed = fail.ID("UserValidationFailed", "USER", false, 0)
-	UserNotFound         = fail.ID("UserNotFound", "USER", true, 0)
-	UserUsernameExists   = fail.ID("UserUsernameExists", "USER", true, 0) // USER_0001_S
+	UserEmailExists      = fail.ID(0, "USER", 0, true, "UserEmailExists")       // 0_USER_0000_S
+	UserValidationFailed = fail.ID(0, "USER", 1, false, "UserValidationFailed") // 0_USER_0001_D
+	UserNotFound         = fail.ID(0, "USER", 2, true, "UserNotFound")          // 0_USER_0002_S
+	UserUsernameExists   = fail.ID(0, "USER", 3, true, "UserUsernameExists")    // 0_USER_0003_S
 )
 
 // Database domain errors
 var (
-	DBConnectionFailed = fail.ID("DBConnectionFailed", "DB", true, 1)
-	DBQueryFailed      = fail.ID("DBQueryFailed", "DB", false, 3)
+	DBConnectionFailed = fail.ID(1, "DB", 0, true, "DBConnectionFailed") // 1_DB_0000_S
+	DBQueryFailed      = fail.ID(3, "DB", 1, false, "DBQueryFailed")     // 3_DB_0001_D
 )
 
 var (
-	ContextCanceled = fail.ID("ContextCanceled", "CONTEXT", true, 2) // CONTEXT_0000_S
-	ContextDeadline = fail.ID("ContextDeadline", "CONTEXT", true, 5) // CONTEXT_0001_S
+	ContextCanceled = fail.ID(2, "CONTEXT", 0, true, "ContextCanceled") // 2_CONTEXT_0000_S
+	ContextDeadline = fail.ID(5, "CONTEXT", 1, true, "ContextDeadline") // 5_CONTEXT_0001_S
 )
 
 // ============================================================================

@@ -77,10 +77,10 @@ func (s *SlogLogger) log(ctx context.Context, e *fail.Error) {
 	}
 }
 
-var AdminUsernameEmpty = fail.ID("AdminUsernameEmpty", "ADMIN", true, 0)
+var AdminUsernameEmpty = fail.ID(0, "ADMIN", 0, true, "AdminUsernameEmpty")
 var ErrAdminUsernameEmpty = fail.Form(AdminUsernameEmpty, "username cannot be empty", false, nil)
 
-var AdminIDNotFound = fail.ID("AdminIDNotFound", "ADMIN", true, 0)
+var AdminIDNotFound = fail.ID(0, "ADMIN", 1, true, "AdminIDNotFound")
 var ErrAdminNotFound = fail.Form(AdminIDNotFound, "admin not found", false, nil)
 
 func CreateAdmin(logger fail.Logger, name string) error {

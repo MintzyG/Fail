@@ -73,7 +73,8 @@ type Error struct {
 	Meta map[string]any // Arbitrary metadata (traces, validation errors, etc.)
 
 	// Internal tracking
-	trusted bool // Whether this error was registered in the hub and should be trusted
+	trusted  bool // Whether this error was registered in the hub and should be trusted
+	registry *Registry
 }
 
 // Error implements the error interface
@@ -110,5 +111,5 @@ func Register(def ErrorDefinition) {
 	})
 }
 
-var UnknownError = internalID("FailUnknownError", false, 0)
+var UnknownError = internalID(0, 9, false, "FailUnknownError")
 var ErrUnknownError = Form(UnknownError, "unknown error", true, nil)

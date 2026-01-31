@@ -12,7 +12,7 @@ import (
 const reservedDomain = "FAIL"
 
 // ErrorID represents a trusted, deterministically-generated error identifier
-// IDs are generated from names using sorting to ensure compilation-order independence
+// IDs are generated from names using explicit numbering for stability across versions
 // Static (S) and Dynamic (D) have separate counters within each domain
 // Format: LEVEL_DOMAIN_NUM_TYPE (e.g., "0_AUTH_0042_S")
 // Level indicates severity but does not affect uniqueness
@@ -21,7 +21,7 @@ type ErrorID struct {
 	domain   string
 	level    int // Severity level
 	isStatic bool
-	number   int  // Derived from sorted position within domain and type
+	number   int  // Explicitly assigned, stable across versions
 	trusted  bool // Internal flag - only IDs created by ID() are trusted
 }
 
@@ -49,7 +49,7 @@ func (id ErrorID) Level() int {
 	return id.level
 }
 
-// Number returns the error number (deterministic based on sorted order within domain and type)
+// Number returns the error number (explicitly assigned for stability)
 func (id ErrorID) Number() int {
 	return id.number
 }
@@ -65,44 +65,54 @@ func (id ErrorID) IsTrusted() bool {
 }
 
 // IDRegistry manages error ID generation and validation
-// Numbers are assigned per-domain and per-type (static/dynamic) based on alphabetical ordering
+// Numbers are explicitly assigned per domain and type (static/dynamic)
 type IDRegistry struct {
 	mu            sync.Mutex
 	registeredIDs map[string]ErrorID // name -> ErrorID
+	numberIndex   map[string]ErrorID // "domain:static:number" -> ErrorID (collision detection)
 }
 
 // Global ID registry
 var globalIDRegistry = &IDRegistry{
 	registeredIDs: make(map[string]ErrorID),
+	numberIndex:   make(map[string]ErrorID),
 }
 
-// ID creates a new trusted ErrorID with deterministic sequential numbering
+// ID creates a new trusted ErrorID with explicit numbering
 // This is the ONLY way to create a trusted ErrorID
+//
+// WARNING: Must be called at package level (var declaration).
+// Calling inside func init() or runtime functions causes unstable numbering.
+// Use go:generate or static analysis to verify.
 //
 // Parameters:
 //   - name: Full error name (e.g., "AuthInvalidCredentials", "UserNotFound")
 //   - domain: Error domain (e.g., "AUTH", "USER") - must be a prefix of the name
 //   - static: true for static message, false for dynamic
 //   - level: severity level (0-9 recommended)
+//   - number: explicit number for this ID (must be unique within domain+type)
 //
 // Panics if:
-//   - Name doesn't start with domain (e.g., name="UserNotFound" but domain="AUTH")
+//   - Name doesn't start with domain
 //   - Name already exists in registry
 //   - Name is too similar to existing name (Levenshtein distance < 3)
 //   - Domain is "FAIL" (reserved for internal errors)
+//   - Number already used in this domain+type combination
 //
 // Example:
 //
-//	var AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true, 0)  // 0_AUTH_0000_S
-//	var AuthInvalidPassword    = fail.ID("AuthInvalidPassword", "AUTH", true, 0)     // 0_AUTH_0001_S
-//	var AuthCustomError        = fail.ID("AuthCustomError", "AUTH", false, 1)        // 1_AUTH_0000_D
-//	var AuthAnotherError       = fail.ID("AuthAnotherError", "AUTH", false, 0)       // 0_AUTH_0001_D
-func ID(name, domain string, static bool, level int) ErrorID {
-	return globalIDRegistry.ID(name, domain, static, level)
+//	var AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")   // 0_AUTH_0000_S
+//	var AuthInvalidPassword    = fail.ID(0, "AUTH", 1, true, "AuthInvalidPassword")      // 0_AUTH_0001_S
+//	var AuthCustomError        = fail.ID(0, "AUTH", 0, false, "AuthCustomError")         // 1_AUTH_0000_D
+//	var AuthAnotherError       = fail.ID(0, "AUTH", 1, false, "AuthAnotherError")        // 0_AUTH_0001_D
+//	// v0.0.2 - add new ID, gaps are fine
+//	var AuthNewFeature         = fail.ID("AuthNewFeature", "AUTH", true, 0, 100)         // 0_AUTH_0100_S
+func ID(level int, domain string, number int, static bool, name string) ErrorID {
+	return globalIDRegistry.ID(name, domain, static, level, number)
 }
 
 // ID creates a new trusted ErrorID for this registry
-func (r *IDRegistry) ID(name, domain string, static bool, level int) ErrorID {
+func (r *IDRegistry) ID(name, domain string, static bool, level, number int) ErrorID {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -141,22 +151,28 @@ func (r *IDRegistry) ID(name, domain string, static bool, level int) ErrorID {
 		}
 	}
 
-	// Create the ID with placeholder number
+	// Validation 4: Number must be unique within domain+type
+	numberKey := fmt.Sprintf("%s:%v:%d", domain, static, number)
+	if existing, exists := r.numberIndex[numberKey]; exists {
+		panic(fmt.Sprintf(
+			"number %d already used in domain '%s' (static=%v) by '%s' (%s)",
+			number, domain, static, existing.name, existing.String(),
+		))
+	}
+
+	// Create the ID with explicit number
 	id := ErrorID{
 		name:     name,
 		domain:   domain,
 		level:    level,
 		isStatic: static,
-		number:   -1, // temporary, will be reassigned
+		number:   number,
 		trusted:  true,
 	}
 	r.registeredIDs[name] = id
+	r.numberIndex[numberKey] = id
 
-	// Reassign all numbers in this domain to ensure contiguous ordering
-	// Separate assignments for static and dynamic
-	r.renumberDomain(domain)
-
-	return r.registeredIDs[name]
+	return id
 }
 
 // internalID creates a trusted ErrorID in the reserved "FAIL" domain.
@@ -165,13 +181,13 @@ func (r *IDRegistry) ID(name, domain string, static bool, level int) ErrorID {
 //
 // Example:
 //
-//	var FailRegistryCorrupted = internalID("FailRegistryCorrupted", true, 9)  // 9_FAIL_0000_S
-func internalID(name string, static bool, level int) ErrorID {
-	return globalIDRegistry.internalID(name, static, level)
+//	var FailRegistryCorrupted = internalID(9, 0, true, "FailRegistryCorrupted")  // 9_FAIL_0000_S
+func internalID(level, number int, static bool, name string) ErrorID {
+	return globalIDRegistry.internalID(level, number, static, name)
 }
 
 // internalID creates a new trusted ErrorID for the reserved FAIL domain.
-func (r *IDRegistry) internalID(name string, static bool, level int) ErrorID {
+func (r *IDRegistry) internalID(level, number int, static bool, name string) ErrorID {
 	domain := reservedDomain
 
 	r.mu.Lock()
@@ -204,59 +220,28 @@ func (r *IDRegistry) internalID(name string, static bool, level int) ErrorID {
 		}
 	}
 
+	// Validation 4: Number must be unique within FAIL domain+type
+	numberKey := fmt.Sprintf("%s:%v:%d", domain, static, number)
+	if existing, exists := r.numberIndex[numberKey]; exists {
+		panic(fmt.Sprintf(
+			"number %d already used in internal domain '%s' (static=%v) by '%s'",
+			number, domain, static, existing.name,
+		))
+	}
+
 	// Create the ID
 	id := ErrorID{
 		name:     name,
 		domain:   domain,
 		level:    level,
 		isStatic: static,
-		number:   -1, // temporary
+		number:   number,
 		trusted:  true,
 	}
 	r.registeredIDs[name] = id
+	r.numberIndex[numberKey] = id
 
-	// Reassign all numbers in the FAIL domain
-	r.renumberDomain(domain)
-
-	return r.registeredIDs[name]
-}
-
-// renumberDomain reassigns numbers to all IDs in a domain to ensure:
-// 1. Static and dynamic have separate sequences
-// 2. Numbers are contiguous (0, 1, 2, 3...)
-// 3. Numbers are assigned based on alphabetical order of names
-// Note: Level does not affect numbering (0_USER_0001_S and 1_USER_0001_S share the same number sequence)
-func (r *IDRegistry) renumberDomain(domain string) {
-	// Separate static and dynamic names
-	var staticNames, dynamicNames []string
-
-	for name, id := range r.registeredIDs {
-		if id.domain == domain {
-			if id.isStatic {
-				staticNames = append(staticNames, name)
-			} else {
-				dynamicNames = append(dynamicNames, name)
-			}
-		}
-	}
-
-	// Sort alphabetically
-	sort.Strings(staticNames)
-	sort.Strings(dynamicNames)
-
-	// Assign numbers to static IDs
-	for i, name := range staticNames {
-		id := r.registeredIDs[name]
-		id.number = i
-		r.registeredIDs[name] = id
-	}
-
-	// Assign numbers to dynamic IDs
-	for i, name := range dynamicNames {
-		id := r.registeredIDs[name]
-		id.number = i
-		r.registeredIDs[name] = id
-	}
+	return id
 }
 
 // Reset clears all registered IDs (useful for testing)
@@ -264,6 +249,7 @@ func (r *IDRegistry) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.registeredIDs = make(map[string]ErrorID)
+	r.numberIndex = make(map[string]ErrorID)
 }
 
 // GetAllIDs returns all registered error IDs sorted by domain, type, then number
@@ -294,6 +280,7 @@ func (r *IDRegistry) GetAllIDs() []ErrorID {
 func NewIDRegistry() *IDRegistry {
 	return &IDRegistry{
 		registeredIDs: make(map[string]ErrorID),
+		numberIndex:   make(map[string]ErrorID),
 	}
 }
 
@@ -374,8 +361,75 @@ func minInt(a, b, c int) int {
 	return c
 }
 
+// ValidateIDs checks for gaps and duplicates. Call in main() after all init().
+func ValidateIDs() {
+	globalIDRegistry.validateNoGaps()
+}
+
+// ValidateIDs checks for gaps and duplicates. Call in main() after all init().
+func (r *IDRegistry) ValidateIDs() {
+	r.validateNoGaps()
+}
+
+// validateNoGaps checks for numbering gaps within each domain+type combination
+// Gaps indicate possible mistakes in manual numbering (skipped numbers)
+func (r *IDRegistry) validateNoGaps() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Group by domain+type
+	type groupKey struct {
+		domain string
+		static bool
+	}
+	groups := make(map[groupKey][]int) // key -> list of numbers
+
+	for _, id := range r.registeredIDs {
+		key := groupKey{domain: id.domain, static: id.isStatic}
+		groups[key] = append(groups[key], id.number)
+	}
+
+	// Check each group for gaps
+	var gaps []string
+	for key, numbers := range groups {
+		if len(numbers) <= 1 {
+			continue // Single ID or empty, no gaps possible
+		}
+
+		sort.Ints(numbers)
+
+		for i := 1; i < len(numbers); i++ {
+			if numbers[i] != numbers[i-1]+1 {
+				// Gap detected
+				expected := numbers[i-1] + 1
+				actual := numbers[i]
+				gaps = append(gaps, fmt.Sprintf(
+					"%s (static=%v): missing %d (jumped from %d to %d)",
+					key.domain, key.static, expected, numbers[i-1], actual,
+				))
+			}
+		}
+	}
+
+	if len(gaps) > 0 {
+		panic(fmt.Sprintf(
+			"fail: ID numbering gaps detected (missing numbers):\n%s\n"+
+				"Hint: IDs must be numbered sequentially starting from 0 within each domain+type combination. "+
+				"Gaps indicate skipped numbers or future-proofing, which breaks the stability contract.",
+			formatGaps(gaps),
+		))
+	}
+}
+
+func formatGaps(gaps []string) string {
+	result := ""
+	for _, g := range gaps {
+		result += "  - " + g + "\n"
+	}
+	return result
+}
+
 // ExportIDList returns all registered error IDs as JSON bytes
-// Format: [{"name": "AuthInvalidCredentials", "domain": "AUTH", "static": true, "level": 0, "id": "0_AUTH_0000_S"}, ...]
 func ExportIDList() ([]byte, error) {
 	return globalIDRegistry.ExportIDList()
 }

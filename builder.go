@@ -172,24 +172,58 @@ func (e *Error) Validations(errs []ValidationError) *Error {
 
 // Log automatically logs the error using the configured logger
 func (e *Error) Log() *Error {
-	global.mu.RLock()
-	logger := global.logger
-	global.mu.RUnlock()
+	// Get registry first (with fallback)
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	// Run hook regardless of logger config
+	reg.hooks.runLog(e, map[string]any{
+		"id":      e.ID.String(),
+		"domain":  e.ID.Domain(),
+		"level":   e.ID.Level(),
+		"message": e.Message,
+		"source":  "log",
+	})
+
+	// Logging is separate concern
+	reg.mu.RLock()
+	logger := reg.logger
+	reg.mu.RUnlock()
 
 	if logger != nil {
 		logger.Log(e)
 	}
+
 	return e
 }
 
 func (e *Error) LogCtx(ctx context.Context) *Error {
-	global.mu.RLock()
-	logger := global.logger
-	global.mu.RUnlock()
+	// Get registry first (with fallback)
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	// Run hook regardless of logger config
+	reg.hooks.runLog(e, map[string]any{
+		"id":      e.ID.String(),
+		"domain":  e.ID.Domain(),
+		"level":   e.ID.Level(),
+		"message": e.Message,
+		"source":  "logCtx",
+	})
+
+	// Logging is separate concern
+	reg.mu.RLock()
+	logger := reg.logger
+	reg.mu.RUnlock()
 
 	if logger != nil {
 		logger.LogCtx(ctx, e)
 	}
+
 	return e
 }
 

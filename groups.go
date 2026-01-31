@@ -7,12 +7,8 @@ import (
 )
 
 // MultipleErrors is raised when multiple errors are aggregated in ErrorGroup
-var MultipleErrors = internalID("FailMultipleErrors", false, 2) // Level 2: warning/moderate severity
+var MultipleErrors = internalID(0, 8, false, "FailMultipleErrors")
 var ErrMultipleErrors = Form(MultipleErrors, "multiple errors occurred", false, nil)
-
-// MultipleErrorChild is used for errors that are added to an ErrorGroup generically and not as Error
-var MultipleErrorChild = internalID("FailMultipleErrorChild", false, 0)
-var ErrMultipleErrorChild = Form(MultipleErrorChild, "no message set yet", false, nil)
 
 // ErrorGroup collects multiple errors thread-safely
 type ErrorGroup struct {

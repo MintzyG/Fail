@@ -19,13 +19,13 @@ func RegisterTranslator(t Translator) error {
 	return global.RegisterTranslator(t)
 }
 
-var TranslatorAlreadyRegistered = internalID("FailTranslatorAlreadyRegistered", false, 0)
+var TranslatorAlreadyRegistered = internalID(0, 0, false, "FailTranslatorAlreadyRegistered")
 var ErrTranslatorAlreadyRegistered = Form(TranslatorAlreadyRegistered, "translator already registered", true, nil)
 
-var TranslatorNil = internalID("FailTranslatorNil", true, 0)
+var TranslatorNil = internalID(0, 1, true, "FailTranslatorNil")
 var ErrTranslatorNil = Form(TranslatorNil, "cannot register nil translator", true, nil)
 
-var TranslatorNameEmpty = internalID("FailTranslatorNameEmpty", true, 0)
+var TranslatorNameEmpty = internalID(0, 2, true, "FailTranslatorNameEmpty")
 var ErrTranslatorNameEmpty = Form(TranslatorNameEmpty, "translator must have a non-empty name", true, nil)
 
 func (r *Registry) RegisterTranslator(t Translator) error {
@@ -59,16 +59,16 @@ func Translate(err *Error, translatorName string) (any, error) {
 	return global.Translate(err, translatorName)
 }
 
-var TranslateUntrustedError = internalID("FailTranslateUntrustedError", false, 0)
+var TranslateUntrustedError = internalID(0, 3, false, "FailTranslateUntrustedError")
 var ErrTranslateUntrustedError = Form(TranslateUntrustedError, "tried translating unregistered error", true, nil)
 
-var TranslateNotFound = internalID("FailTranslatorNotFound", false, 0)
+var TranslateNotFound = internalID(0, 4, false, "FailTranslatorNotFound")
 var ErrTranslateNotFound = Form(TranslateNotFound, "couldn't find translator", true, nil)
 
-var TranslateUnsupportedError = internalID("FailTranslateUnsupportedError", false, 0)
+var TranslateUnsupportedError = internalID(0, 5, false, "FailTranslateUnsupportedError")
 var ErrTranslateUnsupportedError = Form(TranslateUnsupportedError, "can't translate unsupported error", true, nil)
 
-var TranslatePanic = internalID("FailTranslatorPanic", false, 0)
+var TranslatePanic = internalID(0, 6, false, "FailTranslatorPanic")
 var ErrTranslatePanic = Form(TranslatePanic, "translator panicked during translation", true, nil)
 
 // Translate converts an error using the named translator
@@ -104,7 +104,7 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 	return translator.Translate(err)
 }
 
-var TranslateWrongType = internalID("FailTranslateWrongType", false, 0)
+var TranslateWrongType = internalID(0, 7, false, "FailTranslateWrongType")
 var ErrTranslateWrongType = Form(TranslateWrongType, "translator returned unexpected type", true, nil)
 
 func TranslateAs[T any](err *Error, translatorName string) (T, error) {

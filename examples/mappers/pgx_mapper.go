@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	SQLUniqueViolation = fail.ID("SQLUniqueViolation", "SQL", true, 0)
-	SQLForeignKey      = fail.ID("SQLForeignKey", "SQL", true, 0)
-	SQLUnknownError    = fail.ID("SQLUnknownError", "SQL", false, 0)
+	SQLUniqueViolation = fail.ID(0, "SQL", 0, true, "SQLUniqueViolation") // 0_SQL_0000_S
+	SQLForeignKey      = fail.ID(0, "SQL", 1, true, "SQLForeignKey")      // 0_SQL_0001_S
+	SQLUnknownError    = fail.ID(0, "SQL", 2, false, "SQLUnknownError")   // 0_SQL_0002_D
 )
 
 var (

@@ -56,7 +56,7 @@ func (h *HTTPTranslator) Supports(err *fail.Error) bool {
 	return err != nil && err.IsTrusted()
 }
 
-var CannotTranslateToHTTP = fail.ID("TRCannotTranslateToHTTP", "TR", false, 5)
+var CannotTranslateToHTTP = fail.ID(5, "TR", 0, false, "TRCannotTranslateToHTTP")
 var ErrCannotTranslateToHTTP = fail.Form(CannotTranslateToHTTP, "cannot translate error to http", true, nil)
 
 // Translate converts a fail.Error to an HTTPResponse

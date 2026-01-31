@@ -104,10 +104,10 @@ func (o *OTelTracer) recordError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-var UserUsernameEmpty = fail.ID("UserUsernameEmpty", "USER", true, 0)
+var UserUsernameEmpty = fail.ID(0, "USER", 4, true, "UserUsernameEmpty")
 var ErrUserUsernameEmpty = fail.Form(UserUsernameEmpty, "username cannot be empty", false, nil)
 
-var UserIDNotFound = fail.ID("UserIDNotFound", "ADMIN", true, 0)
+var UserIDNotFound = fail.ID(0, "USER", 5, true, "UserIDNotFound")
 var ErrUserNotFound = fail.Form(UserIDNotFound, "user not found", false, nil)
 
 func CreateUser(tracer fail.Tracer, name string) error {

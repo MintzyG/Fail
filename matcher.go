@@ -25,6 +25,7 @@ func (m *ErrorMatcher) Case(id ErrorID, handler func(*Error)) *ErrorMatcher {
 	if m.failErr.ID == id {
 		handler(m.failErr)
 		m.matched = true
+		m.failErr.registry.hooks.runMatch(m.failErr, map[string]any{"matched": "id", "id": id})
 	}
 	return m
 }

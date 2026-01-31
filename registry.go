@@ -13,9 +13,10 @@ type Registry struct {
 	translators    map[string]Translator
 
 	// Hooks for automatic behavior
-	onErrorCreated []func(*Error)
-	tracer         Tracer
-	logger         Logger
+	hooks Hooks
+
+	tracer Tracer
+	logger Logger
 }
 
 // Global registry - users can also create their own
@@ -23,7 +24,7 @@ var global = &Registry{
 	errors:         make(map[string]*Error),
 	genericMappers: NewMapperList(true),
 	translators:    make(map[string]Translator),
-	onErrorCreated: make([]func(*Error), 0),
+	hooks:          Hooks{},
 }
 
 // NewRegistry creates a new isolated registry (for testing or multi-app scenarios)
@@ -32,7 +33,7 @@ func NewRegistry() *Registry {
 		errors:         make(map[string]*Error),
 		genericMappers: NewMapperList(true),
 		translators:    make(map[string]Translator),
-		onErrorCreated: make([]func(*Error), 0),
+		hooks:          Hooks{},
 	}
 }
 
@@ -83,6 +84,7 @@ func (r *Registry) New(id ErrorID) *Error {
 			InternalMessage: fmt.Sprintf("error ID %s not found in registry", id),
 			IsSystem:        true,
 			trusted:         false,
+			registry:        r,
 		}
 	}
 
@@ -91,6 +93,7 @@ func (r *Registry) New(id ErrorID) *Error {
 		Message:  def.Message,
 		IsSystem: def.IsSystem,
 		trusted:  true,
+		registry: r,
 	}
 
 	// Copy default meta if present
@@ -102,7 +105,7 @@ func (r *Registry) New(id ErrorID) *Error {
 	}
 
 	// Run onCreate hooks
-	r.runOnCreate(err)
+	r.hooks.runCreate(err, map[string]any{"create": def.ID.String()})
 
 	return err
 }
@@ -123,7 +126,6 @@ func (r *Registry) From(err error) *Error {
 
 	// Try each mapper in priority order
 	if fe, ok := mappers.MapToFail(err); ok {
-		r.runOnCreate(fe)
 		return fe
 	}
 
@@ -135,5 +137,6 @@ func (r *Registry) From(err error) *Error {
 		Cause:           err,
 		IsSystem:        true,
 		trusted:         false,
+		registry:        r,
 	}
 }
