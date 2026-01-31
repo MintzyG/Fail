@@ -273,7 +273,7 @@ func OnLog(fn func(*Error, map[string]any))       { On(HookLog, fn) }
 func OnTrace(fn func(*Error, map[string]any))     { On(HookTrace, fn) }
 func OnMap(fn func(*Error, map[string]any))       { On(HookMap, fn) }
 func OnWrap(fn func(*Error, error))               { On(HookWrap, fn) }
-func OnFromFail(fn func(error, *Error))           { On(HookFromFail, fn) }
+func OnFromFail(fn func(error))                   { On(HookFromFail, fn) }
 func OnFromSuccess(fn func(error, *Error))        { On(HookFromSuccess, fn) }
 func OnForm(fn func(ErrorID, *Error))             { On(HookForm, fn) }
 func OnTranslate(fn func(*Error, map[string]any)) { On(HookTranslate, fn) }
