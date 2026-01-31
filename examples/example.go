@@ -1,300 +1,261 @@
 package main
 
 import (
-	"fail"
-	"fail/examples/mappers"
-	"fail/examples/translators"
+	"context"
+	"errors"
 	"fmt"
-	"log"
+	"sync"
+	"time"
 
-	"github.com/jackc/pgconn"
-)
-
-// Auth domain errors
-var (
-	AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials") // 0_AUTH_0001_S
-	AuthTokenExpired       = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")       // 0_AUTH_0002_S
-	AuthUserNotFound       = fail.ID(0, "AUTH", 2, true, "AuthUserNotFound")       // 0_AUTH_0004_S
-	AuthValidationFailed   = fail.ID(0, "AUTH", 0, false, "AuthValidationFailed")  // 0_AUTH_0000_D
-	AuthTokenInvalid       = fail.ID(0, "AUTH", 1, false, "AuthTokenInvalid")      // 0_AUTH_0003_D
-)
-
-// User domain errors
-var (
-	UserEmailExists      = fail.ID(0, "USER", 0, true, "UserEmailExists")       // 0_USER_0000_S
-	UserNotFound         = fail.ID(0, "USER", 1, true, "UserNotFound")          // 0_USER_0002_S
-	UserUsernameExists   = fail.ID(0, "USER", 2, true, "UserUsernameExists")    // 0_USER_0003_S
-	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed") // 0_USER_0001_D
-)
-
-// Database domain errors
-var (
-	DBConnectionFailed = fail.ID(1, "DB", 0, true, "DBConnectionFailed") // 1_DB_0000_S
-	DBQueryFailed      = fail.ID(3, "DB", 0, false, "DBQueryFailed")     // 3_DB_0001_D
-)
-
-var (
-	ContextCanceled = fail.ID(2, "CONTEXT", 0, true, "ContextCanceled") // 2_CONTEXT_0000_S
-	ContextDeadline = fail.ID(5, "CONTEXT", 1, true, "ContextDeadline") // 5_CONTEXT_0001_S
+	"github.com/MintzyG/fail"
 )
 
 // ============================================================================
-// REGISTERING ERRORS - Two Ways
+// 1. Error Definitions (using Form in var space for Sentinels)
 // ============================================================================
 
-// Option 1: Traditional - Register separately
-func registerTraditional() {
-	fail.RegisterMany(
-		fail.ErrorDefinition{
-			ID:             AuthInvalidCredentials,
-			DefaultMessage: "invalid credentials",
-			IsSystem:       false,
-		},
-		fail.ErrorDefinition{
-			ID:             AuthUserNotFound,
-			DefaultMessage: "user not found",
-			IsSystem:       false,
-		},
-		fail.ErrorDefinition{
-			ID:             AuthTokenExpired,
-			DefaultMessage: "token has expired",
-			IsSystem:       false,
-		},
-	)
+var (
+	// Auth Domain
+	AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
+	ErrInvalidCreds        = fail.Form(AuthInvalidCredentials, "invalid username or password", false, nil)
+
+	AuthTokenExpired = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
+	// Sentinel for generic expiration
+	ErrAuthTokenExpired = fail.Form(AuthTokenExpired, "authentication token has expired", false, nil)
+
+	AuthRateLimitExceeded = fail.ID(1, "AUTH", 0, false, "AuthRateLimitExceeded")
+
+	// User Domain
+	UserNotFound    = fail.ID(0, "USER", 0, true, "UserNotFound")
+	ErrUserNotFound = fail.Form(UserNotFound, "user was not found in the system", false, nil)
+
+	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
+
+	// DB Domain
+	DBConnectionFailed    = fail.ID(2, "DB", 0, true, "DBConnectionFailed")
+	ErrDBConnectionFailed = fail.Form(DBConnectionFailed, "database connection failed", true, nil)
+
+	DBQueryFailed = fail.ID(2, "DB", 0, false, "DBQueryFailed")
+)
+
+// ============================================================================
+// 2. Custom Components (Logger, Tracer, Mapper, Translator)
+// ============================================================================
+
+type MyLogger struct{}
+
+func (l *MyLogger) Log(e *fail.Error) {
+	fmt.Printf("[LOG] %s: %s (System=%v)\n", e.ID, e.Message, e.IsSystem)
+}
+func (l *MyLogger) LogCtx(ctx context.Context, e *fail.Error) {
+	fmt.Printf("[LOG+CTX] %s: %s\n", e.ID, e.Message)
 }
 
-// Option 2: Form() - Create sentinel and register in one line! 🎉
-var (
-	ErrUserEmailExists      = fail.Form(UserEmailExists, "email address already registered", false, nil)
-	ErrUsernameExists       = fail.Form(UserUsernameExists, "username already taken", false, nil)
-	ErrUserValidationFailed = fail.Form(UserValidationFailed, "user validation failed", false, nil)
-	ErrDBConnectionFailed   = fail.Form(DBConnectionFailed, "database connection failed", true, nil)
-	ErrContextCanceled      = fail.Form(ContextCanceled, "operation canceled", true, nil)
-	ErrContextDeadline      = fail.Form(ContextDeadline, "operation timed out", true, nil)
-)
+type MyTracer struct{}
 
-// ============================================================================
-// VALIDATION EXAMPLES - These would PANIC at startup!
-// ============================================================================
+func (t *MyTracer) Trace(op string, fn func() error) error {
+	fmt.Printf("[TRACE] Starting %s...\n", op)
+	defer fmt.Printf("[TRACE] Ended %s\n", op)
+	return fn()
+}
+func (t *MyTracer) TraceCtx(ctx context.Context, op string, fn func(context.Context) error) error {
+	return t.Trace(op, func() error { return fn(ctx) })
+}
 
-func showValidationExamples() {
-	fmt.Println("🛡️  Built-in Validation Examples:")
-	fmt.Println("")
+type MyMapper struct{}
 
-	// ❌ PANIC: Name doesn't start with domain
-	fmt.Println("❌ fail.ID(\"InvalidName\", \"AUTH\", true)")
-	fmt.Println("   PANIC: error name 'InvalidName' must start with domain 'AUTH'")
-	fmt.Println("")
+func (m *MyMapper) Name() string                              { return "MyMapper" }
+func (m *MyMapper) Priority() int                             { return 100 }
+func (m *MyMapper) Map(err error) (error, bool)               { return nil, false }
+func (m *MyMapper) MapFromFail(err *fail.Error) (error, bool) { return nil, false }
+func (m *MyMapper) MapToFail(err error) (*fail.Error, bool) {
+	if err.Error() == "sql: connection refused" {
+		// Use sentinel for connection failures as they are usually static
+		return ErrDBConnectionFailed.With(err), true
+	}
+	return nil, false
+}
 
-	// ❌ PANIC: Duplicate name
-	fmt.Println("❌ fail.ID(\"AuthInvalidCredentials\", \"AUTH\", true)")
-	fmt.Println("   PANIC: error name 'AuthInvalidCredentials' already registered")
-	fmt.Println("")
+type HTTPResponse struct {
+	Status int    `json:"status"`
+	Error  string `json:"error"`
+	Ref    string `json:"ref"`
+}
 
-	// ❌ PANIC: Too similar (distance < 3)
-	fmt.Println("❌ fail.ID(\"AuthInvalidCredential\", \"AUTH\", true)")
-	fmt.Println("   PANIC: too similar to 'AuthInvalidCredentials' (distance: 1, must be >= 3)")
-	fmt.Println("")
+type HTTPTranslator struct{}
 
-	fmt.Println("❌ fail.ID(\"UserNotFounds\", \"USER\", true)")
-	fmt.Println("   PANIC: too similar to 'UserNotFound' (distance: 1, must be >= 3)")
-	fmt.Println("")
+func (t *HTTPTranslator) Name() string                { return "http" }
+func (t *HTTPTranslator) Supports(e *fail.Error) bool { return true }
+func (t *HTTPTranslator) Translate(e *fail.Error) (any, error) {
+	status := 500
+	if !e.IsSystem {
+		switch e.ID.Domain() {
+		case "AUTH":
+			status = 401
+		case "USER":
+			status = 400
+		}
+	}
+	return HTTPResponse{
+			Status: status,
+			Error:  e.Message,
+			Ref:    e.ID.String(),
+		},
+		nil
 }
 
 // ============================================================================
-// USAGE IN CODE
+// 3. Application Logic
 // ============================================================================
 
-func Login(email, password string) error {
-	// Static error - message from definition
-	if email == "" {
-		return fail.New(AuthInvalidCredentials)
-	}
+func setup() {
+	fail.SetLogger(&MyLogger{})
+	fail.SetTracer(&MyTracer{})
+	fail.RegisterMapper(&MyMapper{})
+	fail.RegisterTranslator(&HTTPTranslator{})
 
-	// Dynamic error - customize message
-	if len(password) < 8 {
-		return fail.New(AuthTokenInvalid).
-			Msgf("password must be at least 8 characters, got %d", len(password))
-	}
-
-	// Rich error with context
-	return fail.New(AuthValidationFailed).
-		Msg("authentication failed").
-		Trace("validated email format").
-		Trace("checked password strength").
-		Debug("login attempt from IP: 192.168.1.1").
-		AddMeta("attempt", 3)
+	fail.OnCreate(func(e *fail.Error, data map[string]any) {
+		e.AddMeta("timestamp", time.Now().Unix())
+	})
 }
 
-func Register(email, password string) error {
-	// Using Form() sentinel
-	if emailExists(email) {
-		return ErrUserEmailExists.
-			AddMeta("email", email).
-			Trace("checked uniqueness")
+func simulateAuth(token string) error {
+	if token == "expired" {
+		// Use New(ID) for dynamic messages to avoid mutating global sentinels
+		return fail.New(AuthTokenExpired).
+			Msg("token expired 5 mins ago").
+			AddMeta("user_id", 42).
+			Log()
 	}
-
-	// Validation errors
-	if !validateInput(email, password) {
-		return fail.New(UserValidationFailed).
-			Msg("registration validation failed").
-			Validation("email", "invalid format").
-			Validation("password", "too short")
+	if token == "invalid" {
+		// Use sentinel directly for static errors
+		return ErrInvalidCreds
 	}
-
 	return nil
 }
 
-func validateInput(email, password string) bool {
-	return len(email) > 0 && len(password) >= 8
-}
-
-func emailExists(email string) bool {
-	return email == "taken@example.com"
-}
-
-// ============================================================================
-// MAIN - DEMONSTRATION
-// ============================================================================
-
-func main() {
-	fail.ValidateIDs()
-	registerTraditional()
-	if err := fail.RegisterTranslator(translators.HTTPResponseTranslator()); err != nil {
-		log.Fatalf("register translator failed: %v", err)
+func simulateDBAction() error {
+	cfg := fail.RetryConfig{
+		MaxAttempts: 3,
+		Delay:       fail.BackoffConstant(10 * time.Millisecond),
+		ShouldRetry: func(err error) bool {
+			return fail.IsSystem(err)
+		},
 	}
 
-	fail.RegisterMapper(&mappers.PGXMapper{})
+	attempts := 0
+	return fail.RetryCFG(cfg, func() error {
+		attempts++
+		if attempts < 2 {
+			return errors.New("sql: connection refused")
+		}
+		return nil
+	})
+}
 
-	fmt.Println("🔥 FAIL - Failure Abstraction & Instrumentation Layer")
-	fmt.Println("=" + "=============================================================")
-	fmt.Println("")
+func simulateParallelValidation() error {
+	g := fail.NewErrorGroup(2)
+	var wg sync.WaitGroup
 
-	// 1. Show deterministic IDs
-	fmt.Println("1️⃣  Deterministic Hash-Based IDs")
-	fmt.Println("-------------------------------------")
-	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthInvalidCredentials", AuthInvalidCredentials, AuthInvalidCredentials.Name())
-	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthUserNotFound", AuthUserNotFound, AuthUserNotFound.Name())
-	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthTokenExpired", AuthTokenExpired, AuthTokenExpired.Name())
-	fmt.Printf("%-25s = %-13s (name: %s)\n", "UserNotFound", UserNotFound, UserNotFound.Name())
-	fmt.Printf("%-25s = %-13s (name: %s)\n", "UserEmailExists", UserEmailExists, UserEmailExists.Name())
-	fmt.Println("")
-	fmt.Println("✅ Numbers are based on name hash - compilation order independent!")
-	fmt.Println("")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		// Use New(ID) for thread-safe dynamic errors
+		g.Add(fail.New(UserValidationFailed).Msg("email is invalid"))
+	}()
 
-	// 2. Show validation
-	showValidationExamples()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		g.Add(fail.New(UserValidationFailed).Msg("password is too short"))
+	}()
 
-	// 3. Simple error
-	fmt.Println("2️⃣  Creating Errors")
-	fmt.Println("-------------------------------------")
-	err1 := fail.New(AuthInvalidCredentials)
-	fmt.Printf("Error:   %s\n", err1)
-	fmt.Printf("ID:      %s\n", err1.ID)
-	fmt.Printf("Name:    %s\n", err1.ID.Name())
-	fmt.Printf("Message: %s\n", err1.Message)
-	fmt.Println("")
+	wg.Wait()
 
-	// 4. Using Form() sentinel
-	fmt.Println("3️⃣  Using Form() Sentinels")
-	fmt.Println("-------------------------------------")
-	fmt.Printf("Sentinel: %s\n", ErrUserEmailExists)
-	fmt.Printf("ID:       %s\n", ErrUserEmailExists.ID)
-	fmt.Printf("Name:     %s\n", ErrUserEmailExists.ID.Name())
-	fmt.Printf("Message:  %s\n", ErrUserEmailExists.Message)
-	fmt.Println("")
+	if g.HasErrors() {
+		return g.ToError()
+	}
+	return nil
+}
 
-	// 5. Rich error
-	fmt.Println("4️⃣  Rich Error with Validation")
-	fmt.Println("-------------------------------------")
-	err2 := Register("bad@email", "short")
-	if err2 != nil {
-		e := fail.From(err2)
-		fmt.Printf("Error: %s\n", e)
-		if validations, ok := e.Meta["validations"]; ok {
-			fmt.Printf("Validations:\n")
-			for _, v := range validations.([]fail.ValidationError) {
-				fmt.Printf("  - %s: %s\n", v.Field, v.Message)
+func simulateWorkflow(ctx context.Context) error {
+	return fail.Chain(func() error {
+		return simulateAuth("valid_token")
+	}).
+		Then(func() error {
+			// Use New(ID) for context-rich errors
+			return fail.New(DBQueryFailed).
+				Msg("failed to fetch preferences").
+				WithMeta(map[string]any{"query": "SELECT * FROM prefs"})
+		}).
+		Catch(func(e *fail.Error) *fail.Error {
+			return e.Msg("workflow failed: " + e.Message)
+		}).
+		Finally(func() {
+			fmt.Println("Workflow cleanup...")
+		}).
+		Error()
+}
+
+func main() {
+	fmt.Println("=== FAIL Library Complete Example ===")
+	setup()
+
+	// 1. Basic Error & Translation
+	fmt.Println("\n--- 1. Basic Error & Translation ---")
+	err := simulateAuth("expired")
+	if err != nil {
+		resp, _ := fail.TranslateAs[HTTPResponse](fail.From(err), "http")
+		fmt.Printf("HTTP Response: %+v\n", resp)
+	}
+
+	// 2. Pattern Matching
+	fmt.Println("\n--- 2. Pattern Matching ---")
+	err = simulateAuth("invalid")
+	fail.Match(err).
+		Case(AuthInvalidCredentials, func(e *fail.Error) {
+			fmt.Println("Matched: Invalid Credentials!")
+		}).
+		CaseDomain(func(e *fail.Error) {
+			fmt.Println("Matched: Generic Domain Error")
+		}).
+		Default(func(err error) {
+			fmt.Println("Matched: Unknown")
+		})
+
+	// 3. Retry & Mapping
+	fmt.Println("\n--- 3. Retry & Mapping ---")
+	err = simulateDBAction()
+	if err == nil {
+		fmt.Println("DB Action succeeded after retry!")
+	} else {
+		fErr := fail.From(err)
+		fmt.Printf("DB Action failed: %s (Original: %v)\n", fErr.ID, err)
+	}
+
+	// 4. Error Groups (Validation)
+	fmt.Println("\n--- 4. Error Groups ---")
+	err = simulateParallelValidation()
+	if err != nil {
+		if e, ok := fail.As(err); ok {
+			if gErr, ok := e.Meta["errors"].([]*fail.Error); ok {
+				fmt.Printf("Validation failed with %d errors:\n", len(gErr))
+				for _, subErr := range gErr {
+					fmt.Printf(" - %s\n", subErr.Message)
+				}
 			}
 		}
 	}
-	fmt.Println("")
 
-	// 6. HTTP translation
-	fmt.Println("5️⃣  HTTP Translation")
-	fmt.Println("-------------------------------------")
-	err3 := fail.New(AuthInvalidCredentials).
-		Trace("checking credentials").
-		Debug("login attempt #3")
-
-	resp, _ := fail.Translate(err3, "http")
-	httpResp := resp.(translators.HTTPResponse)
-	fmt.Printf("Status:   %d\n", httpResp.StatusCode)
-	fmt.Printf("Error ID: %s\n", httpResp.ErrorID)
-	fmt.Printf("Message:  %s\n", httpResp.Message)
-	fmt.Println("")
-
-	// 6️⃣ Database Error Mapping (PGX)
-	fmt.Println("6️⃣  Database Error Mapping")
-	fmt.Println("-------------------------------------")
-
-	// Simulate a pgx unique violation
-	pgErr := &pgconn.PgError{
-		Code:           "23505", // unique_violation
-		ConstraintName: "users_email_key",
-		Message:        "duplicate key value violates unique constraint",
-	}
-
-	mapped := fail.From(pgErr)
-
-	fmt.Printf("Mapped Error: %s\n", mapped)
-	fmt.Printf("ID:           %s\n", mapped.ID)
-	fmt.Printf("Name:         %s\n", mapped.ID.Name())
-	fmt.Printf("Message:      %s\n", mapped.Message)
-	fmt.Println("")
-
-	// 7. Type-safe checking
-	fmt.Println("7️⃣ Type-Safe Error Checking")
-	fmt.Println("-------------------------------------")
-	err4 := fail.New(AuthTokenExpired)
-
-	if fail.Is(err4, AuthTokenExpired) {
-		fmt.Printf("✅ Matched: %s\n", AuthTokenExpired.Name())
-	}
-
-	fail.Match(err4).
-		Case(AuthInvalidCredentials, func(e *fail.Error) {
-			fmt.Println("Won't match")
-		}).
-		Case(AuthTokenExpired, func(e *fail.Error) {
-			fmt.Printf("✅ Pattern matched: %s\n", e.ID.Name())
-		}).
-		Default(func(err error) {
-			fmt.Println("Default")
-		})
-	fmt.Println("")
-
-	// 8. Export ID list
-	fmt.Println("8️⃣  Export ID List (for docs)")
-	fmt.Println("-------------------------------------")
-	fmt.Println("JSON output of all registered errors:")
-	data, err := fail.ExportIDList()
+	// 5. Chaining & Trace
+	fmt.Println("\n--- 5. Chaining & Trace ---")
+	err = simulateWorkflow(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		err.(*fail.Error).LogAndRecord()
 	}
-	fmt.Println(string(data))
-	fmt.Println("")
 
-	// Summary
-	fmt.Println("🎉 Key Benefits")
-	fmt.Println("-------------------------------------")
-	fmt.Println("✅ Deterministic IDs - hash-based, not file-order dependent")
-	fmt.Println("✅ Name validation - must start with domain")
-	fmt.Println("✅ Duplicate detection - can't register same name twice")
-	fmt.Println("✅ Similarity check - prevents typos (distance >= 3)")
-	fmt.Println("✅ Type-safe - ErrorID is a struct, impossible to typo")
-	fmt.Println("✅ Exportable - generate JSON docs automatically")
-	fmt.Println("✅ Form() helper - one-line sentinel creation")
-	fmt.Println("")
-	fmt.Println("🚀 Run with 'go run example_main.go' to see it in action!")
+	// 6. Documentation
+	fmt.Println("\n--- 6. Export Documentation ---")
+	docs, _ := fail.ExportIDList()
+	fmt.Printf("Registered IDs (JSON snippet):\n%s\n", string(docs))
 }

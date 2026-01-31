@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 var (

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 type TestMapper struct{}

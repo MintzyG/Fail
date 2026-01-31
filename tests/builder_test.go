@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 var BuilderID = fail.ID(0, "BUILD", 1, false, "BuilderTestError")

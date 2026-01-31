@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 func TestRetry_Success(t *testing.T) {

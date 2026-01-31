@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 var MatchID1 = fail.ID(0, "MATC", 1, true, "MatchAlpha")

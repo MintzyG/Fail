@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 var HookID = fail.ID(0, "HOOKS", 1, true, "HooksLifecycleError")

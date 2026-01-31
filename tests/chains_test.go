@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 func TestChain_Flow(t *testing.T) {
@@ -79,7 +79,7 @@ func TestChain_Ctx_And_Catch(t *testing.T) {
 	caught := false
 
 	err := fail.ChainCtx("step1", func() error {
-		return errors.New("fail")
+		return errors.New("github.com/MintzyG/fail")
 	}).Catch(func(e *fail.Error) *fail.Error {
 		caught = true
 		step, _ := fail.GetMeta(e, "chain_step")

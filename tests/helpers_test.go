@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"fail"
+	"github.com/MintzyG/fail"
 )
 
 var HelperID = fail.ID(0, "HELP", 1, true, "HelperError")
