@@ -1,6 +1,7 @@
 package fail
 
 import (
+	"errors"
 	"math/rand"
 	"sync/atomic"
 	"time"
@@ -49,10 +50,11 @@ func IsRetryableDefault(err error) bool {
 	}
 
 	// not a fail.Error? not retryable
-	if e, ok := err.(*Error); !ok {
+	var fe *Error
+	if !errors.As(err, &fe) {
 		return false
 	} else {
-		if v, ok := e.Meta["retryable"].(bool); ok {
+		if v, ok := fe.Meta["retryable"].(bool); ok {
 			return v
 		}
 		return false

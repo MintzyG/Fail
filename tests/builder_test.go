@@ -39,7 +39,7 @@ func TestBuilder_Methods(t *testing.T) {
 	if err.InternalMessage != "secret 2" {
 		t.Errorf("Internalf failed")
 	}
-	if err.Cause != cause {
+	if !errors.Is(cause, err.Cause) {
 		t.Errorf("With cause failed")
 	}
 
@@ -69,7 +69,7 @@ func TestBuilder_Methods(t *testing.T) {
 	}
 
 	// Domain flip
-	err.Domain()
+	_ = err.Domain()
 	if fail.IsSystem(err) {
 		t.Error("Domain() didn't unset IsSystem")
 	}
@@ -85,19 +85,19 @@ func TestConstructors(t *testing.T) {
 	// Wrap
 	cause := errors.New("c")
 	e2 := fail.Wrap(BuilderID, cause)
-	if e2.Cause != cause {
+	if !errors.Is(cause, e2.Cause) {
 		t.Error("Wrap failed")
 	}
 
 	// WrapMsg
 	e3 := fail.WrapMsg(BuilderID, "wrapmsg", cause)
-	if e3.Cause != cause || e3.Message != "wrapmsg" {
+	if !errors.Is(cause, e3.Cause) || e3.Message != "wrapmsg" {
 		t.Error("WrapMsg failed")
 	}
 
 	// FromWithMsg
 	e4 := fail.FromWithMsg(cause, "frommsg")
-	if e4.Cause != cause || e4.Message != "frommsg" {
+	if !errors.Is(cause, e4.Cause) || e4.Message != "frommsg" {
 		t.Error("FromWithMsg failed")
 	}
 }
@@ -130,7 +130,7 @@ func TestBuilder_Observability(t *testing.T) {
 
 	err := fail.New(BuilderID).Log().Record()
 
-	if ml.lastErr != err {
+	if !errors.Is(err, ml.lastErr) {
 		t.Error("Log() did not trigger logger")
 	}
 	if !mt.called {
@@ -139,7 +139,7 @@ func TestBuilder_Observability(t *testing.T) {
 
 	// Test Ctx variants
 	ctx := context.Background()
-	err.LogAndRecordCtx(ctx)
+	_ = err.LogAndRecordCtx(ctx)
 
 	if ml.ctx != ctx {
 		t.Error("LogCtx context missing")

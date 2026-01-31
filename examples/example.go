@@ -16,6 +16,7 @@ import (
 
 var (
 	// Auth Domain
+
 	AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
 	ErrInvalidCreds        = fail.Form(AuthInvalidCredentials, "invalid username or password", false, nil).
 				AddLocalizations(map[string]string{
@@ -26,17 +27,20 @@ var (
 
 	AuthTokenExpired = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
 	// Sentinel for generic expiration
+
 	ErrAuthTokenExpired = fail.Form(AuthTokenExpired, "authentication token has expired", false, nil)
 
 	AuthRateLimitExceeded = fail.ID(1, "AUTH", 0, false, "AuthRateLimitExceeded")
 
 	// User Domain
+
 	UserNotFound    = fail.ID(0, "USER", 0, true, "UserNotFound")
 	ErrUserNotFound = fail.Form(UserNotFound, "user was not found in the system", false, nil)
 
 	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
 
 	// DB Domain
+
 	DBConnectionFailed    = fail.ID(2, "DB", 0, true, "DBConnectionFailed")
 	ErrDBConnectionFailed = fail.Form(DBConnectionFailed, "database connection failed", true, nil)
 

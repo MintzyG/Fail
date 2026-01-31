@@ -1,6 +1,7 @@
 package fail
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -132,9 +133,10 @@ func (r *Registry) From(err error) *Error {
 	}()
 
 	// Already a fail.Error? Return as-is
-	if e, ok := err.(*Error); ok {
+	var e *Error
+	if errors.As(err, &e) {
 		result = e
-		return e
+		return result
 	}
 
 	r.mu.RLock()
@@ -144,7 +146,7 @@ func (r *Registry) From(err error) *Error {
 	// Try each mapper in priority order
 	if fe, ok := mappers.MapToFail(err); ok {
 		result = fe
-		return fe
+		return result
 	}
 
 	// No mapper matched - create a generic system error

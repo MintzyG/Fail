@@ -40,7 +40,7 @@ func TestChain_StopOnError(t *testing.T) {
 		return nil
 	}).Error()
 
-	if fErr == nil || fErr.Cause != expectedErr {
+	if fErr == nil || !errors.Is(expectedErr, fErr.Cause) {
 		t.Error("Error not propagated")
 	}
 	if !step1 {

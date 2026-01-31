@@ -76,14 +76,14 @@ func TestFrom(t *testing.T) {
 
 	// 2. From existing *fail.Error
 	existing := fail.New(CoreTestID)
-	if fail.From(existing) != existing {
+	if !errors.Is(existing, fail.From(existing)) {
 		t.Error("From(*fail.Error) should return identity")
 	}
 
 	// 3. From generic error (should map to generic system error if no mapper)
 	stdErr := errors.New("std error")
 	fErr := fail.From(stdErr)
-	if fErr.Cause != stdErr {
+	if !errors.Is(stdErr, fErr.Cause) {
 		fmt.Printf("From(stdErr) lost cause. Got: %v, Want: %v\n", fErr.Cause, stdErr)
 		t.Error("From(stdErr) lost cause")
 	}
@@ -99,7 +99,7 @@ func TestUnwrap(t *testing.T) {
 	cause := errors.New("root cause")
 	err := fail.Wrap(CoreTestID, cause)
 
-	if errors.Unwrap(err) != cause {
+	if !errors.Is(cause, errors.Unwrap(err)) {
 		t.Error("Unwrap failed to return cause")
 	}
 

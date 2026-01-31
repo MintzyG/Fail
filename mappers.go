@@ -133,7 +133,8 @@ func (d *defaultMapper) Map(err error) (error, bool) {
 	return err, true // returns the error as-is
 }
 func (d *defaultMapper) MapToFail(err error) (*Error, bool) {
-	if fe, ok := err.(*Error); ok {
+	var fe *Error
+	if errors.As(err, &fe) {
 		return fe, true
 	}
 	return New(UnknownError).With(err), true // Wrap unknown error

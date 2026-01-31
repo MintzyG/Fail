@@ -17,13 +17,13 @@ func TestErrorGroup_Basics(t *testing.T) {
 		t.Error("New group shouldn't have errors")
 	}
 
-	g.Add(nil) // Should ignore
+	_ = g.Add(nil) // Should ignore
 	if g.Len() != 0 {
 		t.Error("Add(nil) increased length")
 	}
 
-	g.Add(errors.New("e1"))
-	g.Addf(GroupID, "e%d", 2)
+	_ = g.Add(errors.New("e1")).
+		Addf(GroupID, "e%d", 2)
 
 	if g.Len() != 2 {
 		t.Errorf("Expected 2 errors, got %d", g.Len())
@@ -44,17 +44,20 @@ func TestErrorGroup_ToError(t *testing.T) {
 	// 1 error -> returns that error directly
 	g1 := fail.NewErrorGroup(1)
 	baseErr := fail.New(GroupID)
-	g1.Add(baseErr)
-	if g1.ToError() != baseErr {
+	_ = g1.Add(baseErr)
+	if !errors.Is(baseErr, g1.ToError()) {
 		t.Error("ToError with 1 error should return it directly")
 	}
 
 	// Multiple errors -> Aggregate
-	g2 := fail.NewErrorGroup(2)
-	g2.Add(errors.New("err1"))
-	g2.Add(errors.New("err2"))
+	g2 := fail.NewErrorGroup(2).
+		Add(errors.New("err1")).
+		Add(errors.New("err2"))
 
 	agg := g2.ToError()
+	if agg == nil {
+		t.Fatalf("ToError should not be nil")
+	}
 	if agg.ID.Name() != "FailMultipleErrors" {
 		t.Errorf("Expected FailMultipleErrors, got %s", agg.ID.Name())
 	}
@@ -71,7 +74,7 @@ func TestErrorGroup_Concurrency(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		go func() {
-			g.Add(errors.New("err"))
+			_ = g.Add(errors.New("err"))
 			done <- true
 		}()
 	}
@@ -89,8 +92,8 @@ func TestErrorGroup_Unwrap(t *testing.T) {
 	g := fail.NewErrorGroup(2)
 	e1 := errors.New("match_me")
 	e2 := errors.New("other")
-	g.Add(e1)
-	g.Add(e2)
+	_ = g.Add(e1).
+		Add(e2)
 
 	// Go 1.20+ errors.Is support via Unwrap() []error
 	// Since we are inside the test, we can check if it works with errors.Is
