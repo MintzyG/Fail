@@ -25,7 +25,10 @@ type Registry struct {
 	tracer Tracer
 	logger Logger
 
-	allowInternalLogs bool
+	allowInternalLogs      bool
+	allowStaticMutations   bool
+	panicOnStaticMutations bool
+	allowRuntimePanics     bool
 }
 
 // Global registry - users can also create their own
