@@ -116,12 +116,12 @@ func (r *Registry) New(id ErrorID) *Error {
 	return err
 }
 
-var NotMatchedInAnyMapper = internalID(0, 0, false, "FailNotMatchedInAnyMapper")
+var NotMatchedInAnyMapper = internalID(0, 11, false, "FailNotMatchedInAnyMapper")
 var ErrNotMatchedInAnyMapper = Form(NotMatchedInAnyMapper, "error wasn't matched/mapped by any mapper", true, nil)
 
 // FIXME Implement and enforce registry names
 
-var NoMapperRegistered = internalID(0, 0, false, "FailNoMapperRegistered")
+var NoMapperRegistered = internalID(0, 12, false, "FailNoMapperRegistered")
 var ErrNoMapperRegistered = Form(NoMapperRegistered, "no mapper is registered in the registry", true, nil)
 
 func (r *Registry) From(err error) *Error {

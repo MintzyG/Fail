@@ -19,13 +19,13 @@ func RegisterTranslator(t Translator) error {
 	return global.RegisterTranslator(t)
 }
 
-var TranslatorAlreadyRegistered = internalID(0, 0, false, "FailTranslatorAlreadyRegistered")
+var TranslatorAlreadyRegistered = internalID(0, 14, false, "FailTranslatorAlreadyRegistered")
 var ErrTranslatorAlreadyRegistered = Form(TranslatorAlreadyRegistered, "translator already registered", true, nil)
 
-var TranslatorNil = internalID(0, 0, true, "FailTranslatorNil")
+var TranslatorNil = internalID(0, 13, true, "FailTranslatorNil")
 var ErrTranslatorNil = Form(TranslatorNil, "cannot register nil translator", true, nil)
 
-var TranslatorNameEmpty = internalID(0, 1, true, "FailTranslatorNameEmpty")
+var TranslatorNameEmpty = internalID(0, 15, true, "FailTranslatorNameEmpty")
 var ErrTranslatorNameEmpty = Form(TranslatorNameEmpty, "translator must have a non-empty name", true, nil)
 
 func (r *Registry) RegisterTranslator(t Translator) error {

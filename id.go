@@ -224,8 +224,8 @@ func (r *IDRegistry) internalID(level, number int, static bool, name string) Err
 	numberKey := fmt.Sprintf("%s:%v:%d", domain, static, number)
 	if existing, exists := r.numberIndex[numberKey]; exists {
 		panic(fmt.Sprintf(
-			"number %d already used in internal domain '%s' (static=%v) by '%s'",
-			number, domain, static, existing.name,
+			"number %d from %s already used in internal domain '%s' (static=%v) by '%s'",
+			number, name, domain, static, existing.name,
 		))
 	}
 
