@@ -3,6 +3,7 @@ package fail
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -125,14 +126,17 @@ func (r *Registry) From(err error) *Error {
 		return nil
 	}
 
-	var result *Error
-
-	// Already a fail.Error? Return as-is
+	// Already a fail.Error? Check if we should re-process or return as-is
 	var e *Error
 	if errors.As(err, &e) {
-		result = e
-		r.hooks.runFromSuccess(err, result)
-		return result
+		if e.createdByFrom {
+			log.Printf("[fail] From() called on already-processed error: ID(%s)", e.ID.String())
+			return e
+		} else {
+			log.Printf("[fail] From() called on defined fail.Error with ID(%s) consider removing redundant From() call:", e.ID.String())
+			r.hooks.runFromSuccess(err, e)
+			return e
+		}
 	}
 
 	r.mu.RLock()
@@ -140,34 +144,37 @@ func (r *Registry) From(err error) *Error {
 	r.mu.RUnlock()
 
 	if mappers != nil {
-		// Try each mapper in priority order
 		if fe, ok := mappers.MapToFail(err); ok {
-			result = fe
-			r.hooks.runFromSuccess(err, result)
-			return result
+			fe.createdByFrom = true
+			fe.registry = r
+			fe.trusted = true
+			r.hooks.runFromSuccess(err, fe)
+			return fe
 		}
 	} else {
-		// No mapper registered - create a generic system error
-		result = &Error{
-			ID:       ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
-			Message:  "no mapper is registered, please register one before using From",
-			IsSystem: true,
-			trusted:  false,
-			registry: r,
+		// No mapper registered
+		result := &Error{
+			ID:            ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
+			Message:       "no mapper is registered, please register one before using From",
+			IsSystem:      true,
+			trusted:       true,
+			registry:      r,
+			createdByFrom: true,
 		}
 		r.hooks.runFromFail(err)
 		return result
 	}
 
-	// No mapper matched - create a generic system error
-	result = &Error{
+	// No mapper matched
+	result := &Error{
 		ID:              ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
 		Message:         "an unexpected error occurred",
 		InternalMessage: err.Error(),
 		Cause:           err,
 		IsSystem:        true,
-		trusted:         false,
+		trusted:         true,
 		registry:        r,
+		createdByFrom:   true,
 	}
 	r.hooks.runFromFail(err)
 	return result

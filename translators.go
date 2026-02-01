@@ -7,7 +7,7 @@ type Translator interface {
 
 	// Supports reports whether this translator is allowed to translate this error.
 	// This is for capability, boundary, or policy checks — not mapping.
-	Supports(*Error) bool
+	Supports(*Error) error
 
 	// Translate converts the error into an external representation.
 	// It may still fail even if Supports returned true (e.g. missing metadata).
@@ -66,7 +66,7 @@ var TranslateNotFound = internalID(0, 2, false, "FailTranslatorNotFound")
 var ErrTranslateNotFound = Form(TranslateNotFound, "couldn't find translator", true, nil)
 
 var TranslateUnsupportedError = internalID(0, 3, false, "FailTranslateUnsupportedError")
-var ErrTranslateUnsupportedError = Form(TranslateUnsupportedError, "can't translate unsupported error", true, nil)
+var ErrTranslateUnsupportedError = Form(TranslateUnsupportedError, "error not supported by %s translator", true, nil, "UNNAMED")
 
 var TranslatePanic = internalID(0, 4, false, "FailTranslatorPanic")
 var ErrTranslatePanic = Form(TranslatePanic, "translator panicked during translation", true, nil)
@@ -89,8 +89,8 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 		return nil, New(TranslateNotFound).AddMeta("name", translatorName)
 	}
 
-	if !translator.Supports(err) {
-		return nil, New(TranslateUnsupportedError).With(err)
+	if spErr := translator.Supports(err); spErr != nil {
+		return nil, New(TranslateUnsupportedError).WithArgs(translatorName).With(err).Render()
 	}
 
 	r.hooks.runTranslate(err, map[string]any{

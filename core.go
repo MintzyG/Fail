@@ -99,8 +99,9 @@ type Error struct {
 	Meta map[string]any // Arbitrary metadata (traces, validation errors, etc.)
 
 	// Internal tracking
-	trusted  bool // Whether this error was registered in the hub and should be trusted
-	registry *Registry
+	trusted       bool // Whether this error was registered in the hub and should be trusted
+	registry      *Registry
+	createdByFrom bool
 }
 
 // Error() uses GetRendered() for the final message
