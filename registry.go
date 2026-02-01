@@ -77,6 +77,9 @@ func (r *Registry) RegisterMany(defs ...*ErrorDefinition) {
 	}
 }
 
+var UnregisteredError = internalID(0, 0, false, "FailUnregisteredError")
+var ErrUnregisteredError = Form(UnregisteredError, "error with ID(%s) is not registered in the registry", true, nil, "ID NOT SET")
+
 func (r *Registry) New(id ErrorID) *Error {
 	// Verify the ErrorID is trusted
 	if !id.IsTrusted() {
@@ -88,15 +91,7 @@ func (r *Registry) New(id ErrorID) *Error {
 	r.mu.RUnlock()
 
 	if !exists {
-		// Return an unregistered error with a warning
-		return &Error{
-			ID:              id,
-			Message:         "unregistered error",
-			InternalMessage: fmt.Sprintf("error ID %s not found in registry", id),
-			IsSystem:        true,
-			trusted:         false,
-			registry:        r,
-		}
+		return New(UnregisteredError).WithArgs(id.String())
 	}
 
 	err := &Error{
@@ -120,6 +115,14 @@ func (r *Registry) New(id ErrorID) *Error {
 
 	return err
 }
+
+var NotMatchedInAnyMapper = internalID(0, 0, false, "FailNotMatchedInAnyMapper")
+var ErrNotMatchedInAnyMapper = Form(NotMatchedInAnyMapper, "error wasn't matched/mapped by any mapper", true, nil)
+
+// FIXME Implement and enforce registry names
+
+var NoMapperRegistered = internalID(0, 0, false, "FailNoMapperRegistered")
+var ErrNoMapperRegistered = Form(NoMapperRegistered, "no mapper is registered in the registry", true, nil)
 
 func (r *Registry) From(err error) *Error {
 	if err == nil {
@@ -153,29 +156,12 @@ func (r *Registry) From(err error) *Error {
 		}
 	} else {
 		// No mapper registered
-		result := &Error{
-			ID:            ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
-			Message:       "no mapper is registered, please register one before using From",
-			IsSystem:      true,
-			trusted:       true,
-			registry:      r,
-			createdByFrom: true,
-		}
+		result := New(NoMapperRegistered).With(err)
 		r.hooks.runFromFail(err)
 		return result
 	}
 
-	// No mapper matched
-	result := &Error{
-		ID:              ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
-		Message:         "an unexpected error occurred",
-		InternalMessage: err.Error(),
-		Cause:           err,
-		IsSystem:        true,
-		trusted:         true,
-		registry:        r,
-		createdByFrom:   true,
-	}
+	result := New(NotMatchedInAnyMapper).With(err)
 	r.hooks.runFromFail(err)
 	return result
 }
