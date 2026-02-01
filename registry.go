@@ -9,6 +9,7 @@ import (
 
 // Registry holds all registered error definitions and mappers
 type Registry struct {
+	name		   string
 	mu             sync.RWMutex
 	errors         map[string]*Error // Keyed by ID.String()
 	definitions    map[ErrorID]ErrorDefinition
@@ -27,6 +28,7 @@ type Registry struct {
 
 // Global registry - users can also create their own
 var global = &Registry{
+    name:           "global",
 	errors:         make(map[string]*Error),
 	genericMappers: NewMapperList(),
 	translators:    make(map[string]Translator),
@@ -34,8 +36,9 @@ var global = &Registry{
 }
 
 // NewRegistry creates a new isolated registry (for testing or multi-app scenarios)
-func NewRegistry() *Registry {
+func NewRegistry(name string) *Registry {
 	return &Registry{
+		name:           name,
 		errors:         make(map[string]*Error),
 		genericMappers: NewMapperList(),
 		translators:    make(map[string]Translator),
