@@ -20,6 +20,9 @@ func New(id ErrorID) *Error {
 // Newf returns a new Error from a registered definition with a new formatted message
 func Newf(id ErrorID, format string, args ...interface{}) *Error {
 	err := New(id)
+	if err.checkStatic("Newf") {
+		return err
+	}
 	err.Message = fmt.Sprintf(format, args...)
 	return err
 }
@@ -75,6 +78,7 @@ func (r *Registry) Form(id ErrorID, defaultMsg string, isSystem bool, meta map[s
 		Meta:     meta,
 		Args:     defaultArgs,
 		registry: r,
+		isStatic: id.IsStatic(),
 	}
 
 	r.Register(tmpl)
@@ -102,6 +106,7 @@ type Error struct {
 	trusted       bool // Whether this error was registered in the hub and should be trusted
 	registry      *Registry
 	createdByFrom bool
+	isStatic      bool
 }
 
 // Error() uses GetRendered() for the final message
@@ -128,6 +133,23 @@ func (e *Error) Dump() map[string]any {
 	}
 }
 
+func (e *Error) checkStatic(builderName string) bool {
+	if !e.isStatic {
+		return false
+	}
+
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	if reg.allowInternalLogs {
+		fmt.Printf("[fail] warning: builder %s() called on static error ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String())
+	}
+
+	return true
+}
+
 // Unwrap implements error unwrapping for errors.Is/As
 func (e *Error) Unwrap() error {
 	if e.Cause != nil {
@@ -152,6 +174,7 @@ func Register(def ErrorDefinition) {
 		Message:  def.DefaultMessage,
 		IsSystem: def.IsSystem,
 		Meta:     def.Meta,
+		isStatic: def.ID.IsStatic(),
 	})
 }
 

@@ -9,7 +9,7 @@ import (
 
 // Registry holds all registered error definitions and mappers
 type Registry struct {
-	name		   string
+	name           string
 	mu             sync.RWMutex
 	errors         map[string]*Error // Keyed by ID.String()
 	definitions    map[ErrorID]ErrorDefinition
@@ -30,7 +30,7 @@ type Registry struct {
 
 // Global registry - users can also create their own
 var global = &Registry{
-    name:           "global",
+	name:           "global",
 	errors:         make(map[string]*Error),
 	genericMappers: NewMapperList(),
 	translators:    make(map[string]Translator),
@@ -78,6 +78,7 @@ func (r *Registry) RegisterMany(defs ...*ErrorDefinition) {
 			Message:  def.DefaultMessage,
 			IsSystem: def.IsSystem,
 			Meta:     def.Meta,
+			isStatic: def.ID.IsStatic(),
 		})
 	}
 }
@@ -105,6 +106,7 @@ func (r *Registry) New(id ErrorID) *Error {
 		IsSystem: def.IsSystem,
 		trusted:  true,
 		registry: r,
+		isStatic: id.IsStatic(),
 	}
 
 	// Copy default meta if present
@@ -164,6 +166,7 @@ func (r *Registry) From(err error) *Error {
 			fe.createdByFrom = true
 			fe.registry = r
 			fe.trusted = true
+			fe.isStatic = fe.ID.IsStatic()
 			r.hooks.runFromSuccess(err, fe)
 			return fe
 		}

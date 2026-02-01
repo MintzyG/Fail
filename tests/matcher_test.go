@@ -9,11 +9,13 @@ import (
 
 var MatchID1 = fail.ID(0, "MATC", 1, true, "MatchAlpha")
 var MatchID2 = fail.ID(0, "MATC", 2, true, "MatchBeta")
+var MatchID3 = fail.ID(0, "MATC", 3, false, "MatchGamma")
 
 func TestMatcher(t *testing.T) {
 	fail.RegisterMany(
 		&fail.ErrorDefinition{ID: MatchID1},
 		&fail.ErrorDefinition{ID: MatchID2},
+		&fail.ErrorDefinition{ID: MatchID3},
 	)
 
 	tests := []struct {
@@ -41,7 +43,7 @@ func TestMatcher(t *testing.T) {
 		},
 		{
 			name: "Match System",
-			err:  fail.New(MatchID1).System(),
+			err:  fail.New(MatchID3).System(),
 			check: func(m *fail.ErrorMatcher) {
 				m.CaseSystem(func(e *fail.Error) { panic("system") })
 			},

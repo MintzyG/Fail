@@ -14,7 +14,7 @@ func (m *TestMapper) Priority() int               { return 100 }
 func (m *TestMapper) Map(err error) (error, bool) { return nil, false }
 func (m *TestMapper) MapToFail(err error) (*fail.Error, bool) {
 	if err.Error() == "map_me" {
-		return fail.New(CoreTestID).Msg("mapped"), true // Reuse ID from core_test
+		return fail.New(CoreTestID2).Msg("mapped"), true // Reuse ID from core_test
 	}
 	return nil, false
 }
@@ -30,7 +30,7 @@ func TestMappers_Custom(t *testing.T) {
 	err := errors.New("map_me")
 	res := fail.From(err)
 
-	if res.ID != CoreTestID {
+	if res.ID != CoreTestID2 {
 		t.Error("Mapper failed to map ID")
 	}
 	if res.Message != "mapped" {

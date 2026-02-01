@@ -41,7 +41,7 @@ func TestNew_And_Format(t *testing.T) {
 	}
 
 	// Test Newf
-	err2 := fail.Newf(CoreTestID, "custom %s", "msg")
+	err2 := fail.Newf(CoreTestID2, "custom %s", "msg")
 	if err2.Message != "custom msg" {
 		t.Errorf("Newf message mismatch: %s", err2.Message)
 	}
@@ -97,7 +97,7 @@ func TestFrom(t *testing.T) {
 
 func TestUnwrap(t *testing.T) {
 	cause := errors.New("root cause")
-	err := fail.Wrap(CoreTestID, cause)
+	err := fail.Wrap(CoreTestID2, cause)
 
 	if !errors.Is(cause, errors.Unwrap(err)) {
 		t.Error("Unwrap failed to return cause")

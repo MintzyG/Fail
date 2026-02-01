@@ -31,42 +31,63 @@ func FromWithMsg(err error, message string) *Error {
 
 // System marks this error as a system error
 func (e *Error) System() *Error {
+	if e.checkStatic("System") {
+		return e
+	}
 	e.IsSystem = true
 	return e
 }
 
 // Domain marks this error as a domain error
 func (e *Error) Domain() *Error {
+	if e.checkStatic("Domain") {
+		return e
+	}
 	e.IsSystem = false
 	return e
 }
 
 // Msg sets or overrides the error message (for Dynamic errors)
 func (e *Error) Msg(msg string) *Error {
+	if e.checkStatic("Msg") {
+		return e
+	}
 	e.Message = msg
 	return e
 }
 
 // Msgf sets the error message using format string
 func (e *Error) Msgf(format string, args ...any) *Error {
+	if e.checkStatic("Msgf") {
+		return e
+	}
 	e.Message = fmt.Sprintf(format, args...)
 	return e
 }
 
 // Internal sets or overrides the internal message
 func (e *Error) Internal(msg string) *Error {
+	if e.checkStatic("Internal") {
+		return e
+	}
 	e.InternalMessage = msg
 	return e
 }
 
 // Internalf sets the internal message using format string
 func (e *Error) Internalf(format string, args ...any) *Error {
+	if e.checkStatic("Internalf") {
+		return e
+	}
 	e.InternalMessage = fmt.Sprintf(format, args...)
 	return e
 }
 
 // With sets the cause of the error
 func (e *Error) With(cause error) *Error {
+	if e.checkStatic("With") {
+		return e
+	}
 	e.Cause = cause
 
 	// Get registry first (with fallback)
@@ -81,24 +102,36 @@ func (e *Error) With(cause error) *Error {
 
 // WithLocale sets the target locale for this error
 func (e *Error) WithLocale(locale string) *Error {
+	if e.checkStatic("WithLocale") {
+		return e
+	}
 	e.Locale = locale
 	return e
 }
 
 // WithArgs sets the arguments for template formatting
 func (e *Error) WithArgs(args ...any) *Error {
+	if e.checkStatic("WithArgs") {
+		return e
+	}
 	e.Args = args
 	return e
 }
 
 // WithMeta sets the metadata to data, it replaces existing metadata to merge use MergeMeta
 func (e *Error) WithMeta(data map[string]any) *Error {
+	if e.checkStatic("WithMeta") {
+		return e
+	}
 	e.Meta = data
 	return e
 }
 
 // AddMeta sets a metadata value
 func (e *Error) AddMeta(key string, value any) *Error {
+	if e.checkStatic("AddMeta") {
+		return e
+	}
 	if e.Meta == nil {
 		e.Meta = make(map[string]any)
 	}
@@ -108,6 +141,9 @@ func (e *Error) AddMeta(key string, value any) *Error {
 
 // MergeMeta merges a map into the metadata
 func (e *Error) MergeMeta(data map[string]any) *Error {
+	if e.checkStatic("MergeMeta") {
+		return e
+	}
 	if e.Meta == nil {
 		e.Meta = make(map[string]any, len(data))
 	}
@@ -157,11 +193,17 @@ func (e *Error) AddLocalizations(msgs map[string]string) *Error {
 
 // Trace adds trace information to metadata
 func (e *Error) Trace(trace string) *Error {
+	if e.checkStatic("Trace") {
+		return e
+	}
 	return e.addToSliceMeta("traces", trace)
 }
 
 // Traces adds each trace information to metadata
 func (e *Error) Traces(trace ...string) *Error {
+	if e.checkStatic("Traces") {
+		return e
+	}
 	var err *Error
 	for _, t := range trace {
 		err = e.addToSliceMeta("traces", t)
@@ -171,11 +213,17 @@ func (e *Error) Traces(trace ...string) *Error {
 
 // Debug adds debug information to metadata
 func (e *Error) Debug(debug string) *Error {
+	if e.checkStatic("Debug") {
+		return e
+	}
 	return e.addToSliceMeta("debug", debug)
 }
 
 // Debugs adds each debug information to metadata
 func (e *Error) Debugs(debug ...string) *Error {
+	if e.checkStatic("Debugs") {
+		return e
+	}
 	var err *Error
 	for _, t := range debug {
 		err = e.addToSliceMeta("debug", t)
@@ -191,6 +239,9 @@ type ValidationError struct {
 
 // Validation adds a validation error to metadata
 func (e *Error) Validation(field, message string) *Error {
+	if e.checkStatic("Validation") {
+		return e
+	}
 	if e.Meta == nil {
 		e.Meta = make(map[string]any)
 	}
@@ -212,6 +263,9 @@ func (e *Error) Validation(field, message string) *Error {
 
 // Validations adds multiple validation errors at once
 func (e *Error) Validations(errs []ValidationError) *Error {
+	if e.checkStatic("Validations") {
+		return e
+	}
 	if e.Meta == nil {
 		e.Meta = make(map[string]any)
 	}

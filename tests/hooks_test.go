@@ -54,7 +54,7 @@ func TestHooks_Lifecycle(t *testing.T) {
 
 func TestHooks_MapFrom(t *testing.T) {
 	mapped := false
-	fail.OnFrom(func(orig error, res *fail.Error) {
+	fail.OnFromFail(func(orig error) {
 		mapped = true
 	})
 

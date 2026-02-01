@@ -10,8 +10,13 @@ type MockTranslator struct {
 	Supported bool
 }
 
-func (m *MockTranslator) Name() string                { return "mock" }
-func (m *MockTranslator) Supports(e *fail.Error) bool { return m.Supported }
+func (m *MockTranslator) Name() string { return "mock" }
+func (m *MockTranslator) Supports(e *fail.Error) error {
+	if m.Supported {
+		return nil
+	}
+	return fail.New(fail.TranslateUnsupportedError)
+}
 func (m *MockTranslator) Translate(e *fail.Error) (any, error) {
 	return "translated", nil
 }

@@ -16,7 +16,7 @@ var (
 
 func TestLocalization_RegisterAndLocalize(t *testing.T) {
 	// Create a fresh registry to avoid polluting global state and to test initialization
-	reg := fail.NewRegistry()
+	reg := fail.NewRegistry("localization_test")
 
 	reg.Form(LocTestID, "default message", false, nil)
 
@@ -74,7 +74,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 }
 
 func TestRendering(t *testing.T) {
-	reg := fail.NewRegistry()
+	reg := fail.NewRegistry("localization_test")
 	reg.Form(LocTemplateID, "Hello %s", false, nil)
 	reg.Form(LocArgID, "Value: %d", false, nil, 42) // Default arg 42
 

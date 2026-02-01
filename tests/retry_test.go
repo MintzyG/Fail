@@ -30,7 +30,7 @@ func TestRetry_FailAttempts(t *testing.T) {
 
 	err := fail.RetryCFG(cfg, func() error {
 		attempts++
-		return fail.New(CoreTestID).AddMeta("retryable", true)
+		return fail.New(CoreTestID2).AddMeta("retryable", true)
 	})
 
 	if err == nil {
@@ -48,7 +48,7 @@ func TestRetry_Value(t *testing.T) {
 		if attempts < 2 {
 			// Return a retryable error (need fail.Error with retryable meta or default?)
 			// IsRetryableDefault checks fail.Error.Meta["retryable"]
-			return 0, fail.New(CoreTestID).AddMeta("retryable", true)
+			return 0, fail.New(CoreTestID2).AddMeta("retryable", true)
 		}
 		return 42, nil
 	})
