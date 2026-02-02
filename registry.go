@@ -101,7 +101,7 @@ func (r *Registry) New(id ErrorID) *Error {
 	r.mu.RUnlock()
 
 	if !exists {
-		return New(UnregisteredError).WithArgs(id.String())
+		return New(UnregisteredError).WithArgs(id.String()).Render()
 	}
 
 	err := &Error{
