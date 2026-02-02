@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-// MultipleErrors is raised when multiple errors are aggregated in ErrorGroup
-var MultipleErrors = internalID(0, 6, false, "FailMultipleErrors")
-var ErrMultipleErrors = Form(MultipleErrors, "multiple errors occurred", false, nil)
-
 // ErrorGroup collects multiple errors thread-safely
 type ErrorGroup struct {
 	mu     sync.RWMutex

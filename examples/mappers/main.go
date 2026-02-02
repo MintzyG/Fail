@@ -16,7 +16,7 @@ var (
 	SQLForeignKey    = fail.ID(0, "SQL", 1, true, "SQLForeignKey")
 	ErrSQLForeignKey = fail.Form(SQLForeignKey, "foreign key violation", false, nil)
 
-	SQLUnknownError    = fail.ID(0, "SQL", 2, false, "SQLUnknownError")
+	SQLUnknownError    = fail.ID(0, "SQL", 0, false, "SQLUnknownError")
 	ErrSQLUnknownError = fail.Form(SQLUnknownError, "unknown error", false, nil)
 )
 

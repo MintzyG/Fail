@@ -8,7 +8,7 @@ import (
 	"github.com/MintzyG/fail"
 )
 
-var BuilderID = fail.ID(0, "BUILD", 1, false, "BuilderTestError")
+var BuilderID = fail.ID(0, "BUILD", 0, false, "BuilderTestError")
 
 func init() {
 	fail.Register(fail.ErrorDefinition{ID: BuilderID, DefaultMessage: "base"})

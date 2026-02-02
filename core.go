@@ -199,9 +199,6 @@ func Register(def ErrorDefinition) {
 	})
 }
 
-var UnknownError = internalID(0, 7, false, "FailUnknownError")
-var ErrUnknownError = Form(UnknownError, "unknown error", true, nil)
-
 // AllowInternalLogs enables or disables internal library logging.
 // When enabled, the library will log warnings and debug information
 // about error processing, such as:

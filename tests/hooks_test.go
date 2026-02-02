@@ -7,7 +7,7 @@ import (
 	"github.com/MintzyG/fail"
 )
 
-var HookID = fail.ID(0, "HOOKS", 1, true, "HooksLifecycleError")
+var HookID = fail.ID(0, "HOOKS", 0, true, "HooksLifecycleError")
 
 func TestHooks_Lifecycle(t *testing.T) {
 	// Hooks are global, so we must be careful.

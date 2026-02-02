@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	CoreTestID  = fail.ID(0, "CORE", 1, true, "CoreTestError")
-	CoreTestID2 = fail.ID(0, "CORE", 2, false, "CoreDynamicError")
+	CoreTestID  = fail.ID(0, "CORE", 0, true, "CoreTestError")
+	CoreTestID2 = fail.ID(0, "CORE", 0, false, "CoreDynamicError")
 )
 
 func TestNew_And_Format(t *testing.T) {

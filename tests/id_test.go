@@ -68,9 +68,9 @@ func TestID_ValidationPanics(t *testing.T) {
 
 	// 3. Duplicate Name (We need a unique one first)
 	uniqueName := "AuthDuplicateCheck"
-	fail.ID(0, "AUTH", 100, true, uniqueName)
+	fail.ID(0, "AUTH", 0, true, uniqueName)
 	expectPanic(t, "already registered", func() {
-		fail.ID(0, "AUTH", 101, true, uniqueName)
+		fail.ID(0, "AUTH", 0, true, uniqueName)
 	})
 
 	// 4. Similarity
@@ -83,9 +83,9 @@ func TestID_ValidationPanics(t *testing.T) {
 	})
 
 	// 5. Duplicate Number
-	fail.ID(0, "NUM", 10, true, "NumErrorTen")
-	expectPanic(t, "number 10 already used", func() {
-		fail.ID(0, "NUM", 10, true, "NumErrorTenDuplicate")
+	fail.ID(0, "NUM", 0, true, "NumErrorTen")
+	expectPanic(t, "number 0 already used", func() {
+		fail.ID(0, "NUM", 0, true, "NumErrorTenDuplicate")
 	})
 }
 
@@ -94,7 +94,7 @@ func TestExportIDList(t *testing.T) {
 	defer fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
 
 	// Register a known ID to check export
-	fail.ID(1, "EXPORT", 55, false, "ExportTestError")
+	fail.ID(1, "EXPORT", 0, false, "ExportTestError")
 
 	jsonBytes, err := fail.ExportIDList()
 	if err != nil {
@@ -113,7 +113,7 @@ func TestExportIDList(t *testing.T) {
 			if item["domain"] != "EXPORT" {
 				t.Errorf("Exported domain mismatch")
 			}
-			if item["id"] != "1_EXPORT_0055_D" {
+			if item["id"] != "1_EXPORT_0000_D" {
 				t.Errorf("Exported ID mismatch: %v", item["id"])
 			}
 		}

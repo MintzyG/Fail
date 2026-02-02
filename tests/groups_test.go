@@ -8,7 +8,7 @@ import (
 	"github.com/MintzyG/fail"
 )
 
-var GroupID = fail.ID(0, "GROUP", 1, false, "GroupError")
+var GroupID = fail.ID(0, "GROUP", 0, false, "GroupError")
 
 func TestErrorGroup_Basics(t *testing.T) {
 	g := fail.NewErrorGroup(2)

@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	UserUsernameEmpty = fail.ID(0, "USER", 4, true, "UserUsernameEmpty")
+	UserUsernameEmpty = fail.ID(0, "USER", 0, true, "UserUsernameEmpty")
 	_                 = fail.Form(UserUsernameEmpty, "username cannot be empty", false, nil)
 )
 

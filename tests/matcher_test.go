@@ -7,9 +7,9 @@ import (
 	"github.com/MintzyG/fail"
 )
 
-var MatchID1 = fail.ID(0, "MATC", 1, true, "MatchAlpha")
-var MatchID2 = fail.ID(0, "MATC", 2, true, "MatchBeta")
-var MatchID3 = fail.ID(0, "MATC", 3, false, "MatchGamma")
+var MatchID1 = fail.ID(0, "MATC", 0, true, "MatchAlpha")
+var MatchID2 = fail.ID(0, "MATC", 1, true, "MatchBeta")
+var MatchID3 = fail.ID(0, "MATC", 0, false, "MatchGamma")
 
 func TestMatcher(t *testing.T) {
 	fail.RegisterMany(

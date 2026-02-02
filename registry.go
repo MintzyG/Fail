@@ -87,9 +87,6 @@ func (r *Registry) RegisterMany(defs ...*ErrorDefinition) {
 	}
 }
 
-var UnregisteredError = internalID(0, 0, false, "FailUnregisteredError")
-var ErrUnregisteredError = Form(UnregisteredError, "error with ID(%s) is not registered in the registry", true, nil, "ID NOT SET")
-
 func (r *Registry) New(id ErrorID) *Error {
 	// Verify the ErrorID is trusted
 	if !id.IsTrusted() {
@@ -127,13 +124,7 @@ func (r *Registry) New(id ErrorID) *Error {
 	return err
 }
 
-var NotMatchedInAnyMapper = internalID(0, 11, false, "FailNotMatchedInAnyMapper")
-var ErrNotMatchedInAnyMapper = Form(NotMatchedInAnyMapper, "error wasn't matched/mapped by any mapper", true, nil)
-
 // FIXME Implement and enforce registry names
-
-var NoMapperRegistered = internalID(0, 12, false, "FailNoMapperRegistered")
-var ErrNoMapperRegistered = Form(NoMapperRegistered, "no mapper is registered in the registry", true, nil)
 
 func (r *Registry) From(err error) *Error {
 	if err == nil {

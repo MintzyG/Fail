@@ -17,7 +17,7 @@ func TestStaticErrorBuilders(t *testing.T) {
 	fail.AllowRuntimePanics(false)
 
 	staticID := fail.ID(0, "STAT", 0, true, "StatStaticError")
-	dynamicID := fail.ID(0, "STAT", 1, false, "StatDynamicError")
+	dynamicID := fail.ID(0, "STAT", 0, false, "StatDynamicError")
 
 	fail.Register(fail.ErrorDefinition{
 		ID:             staticID,

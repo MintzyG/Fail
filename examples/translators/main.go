@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	UserValidationFailed = fail.ID(0, "USER", 9, false, "UserValidationFailed")
+	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
 	_                    = fail.Form(UserValidationFailed, "validation failed", false, nil)
 
 	CannotTranslateToHTTP = fail.ID(5, "TR", 0, false, "TRCannotTranslateToHTTP")

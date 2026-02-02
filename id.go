@@ -1,6 +1,7 @@
 package fail
 
 import (
+	"container/list"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -84,13 +85,18 @@ func (r *IDRegistry) OverrideAllowRuntimePanics(allow bool) {
 	r.allowRuntimePanics = &allow
 }
 
+type numberNode struct {
+	number int
+	name   string
+	id     string
+}
+
 // IDRegistry manages error ID generation and validation
 // Numbers are explicitly assigned per domain and type (static/dynamic)
 type IDRegistry struct {
-	mu            sync.Mutex
-	registeredIDs map[string]ErrorID // name -> ErrorID
-	numberIndex   map[string]ErrorID // "domain:static:number" -> ErrorID (collision detection)
-
+	mu                       sync.Mutex
+	registeredIDs            map[string]ErrorID    // name -> ErrorID
+	numberIndex              map[string]*list.List // "domain:static" -> sorted list of numberNode
 	allowRuntimePanics       *bool
 	allowRuntimeRegistration bool
 }
@@ -98,7 +104,7 @@ type IDRegistry struct {
 // Global ID registry
 var globalIDRegistry = &IDRegistry{
 	registeredIDs: make(map[string]ErrorID),
-	numberIndex:   make(map[string]ErrorID),
+	numberIndex:   make(map[string]*list.List),
 }
 
 // ID creates a new trusted ErrorID with explicit numbering
@@ -107,6 +113,23 @@ var globalIDRegistry = &IDRegistry{
 // WARNING: Must be called at package level (var declaration).
 // Calling inside func init() or runtime functions causes unstable numbering.
 // Use go:generate or static analysis to verify.
+//
+// CRITICAL: Since ErrorIDs are a global concept used throughout your entire codebase,
+// they should ideally all be defined together in the same var block within a single
+// package (e.g., a dedicated errors package). The default global registry cannot
+// ensure uniqueness across packages and may incorrectly report gaps that don't
+// actually exist due to Go's file compilation ordering. If IDs are scattered across
+// multiple files/packages, the registry may see partial sequences and panic on
+// apparent gaps that would be filled by later compilation units. Centralize all
+// ID definitions in one location to ensure strict sequential numbering and avoid
+// false gap detection.
+//
+// NOTE: The global registry ALWAYS enforces strict sequential numbering (no gaps).
+// If you need non-sequential numbering or want to disable gap checking, you must
+// create your own isolated IDRegistry via NewIDRegistry() and use registry.ID()
+// directly instead of this package-level ID() function. Custom registries allow
+// you to control gap checking behavior, but the global registry is strict by design
+// to ensure consistency across the entire codebase.
 //
 // Parameters:
 //   - name: Full error name (e.g., "AuthInvalidCredentials", "UserNotFound")
@@ -121,23 +144,25 @@ var globalIDRegistry = &IDRegistry{
 //   - Name is too similar to existing name (Levenshtein distance < 3)
 //   - Domain is "FAIL" (reserved for internal errors)
 //   - Number already used in this domain+type combination
+//   - Any gap in numbering is detected that is not being filled by current insertion
 //
 // Example:
 //
-//	var AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")   // 0_AUTH_0000_S
-//	var AuthInvalidPassword    = fail.ID(0, "AUTH", 1, true, "AuthInvalidPassword")      // 0_AUTH_0001_S
-//	var AuthCustomError        = fail.ID(0, "AUTH", 0, false, "AuthCustomError")         // 1_AUTH_0000_D
-//	var AuthAnotherError       = fail.ID(0, "AUTH", 1, false, "AuthAnotherError")        // 0_AUTH_0001_D
-//	// v0.0.2 - add new ID, gaps are fine
-//	var AuthNewFeature         = fail.ID("AuthNewFeature", "AUTH", true, 0, 100)         // 0_AUTH_0100_S
+//	// Centralized in one package - RECOMMENDED
+//	var (
+//	    AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")   // 0_AUTH_0000_S
+//	    AuthInvalidPassword    = fail.ID(0, "AUTH", 1, true, "AuthInvalidPassword")      // 0_AUTH_0001_S
+//	    AuthCustomError        = fail.ID(0, "AUTH", 0, false, "AuthCustomError")         // 0_AUTH_0000_D
+//	    AuthAnotherError       = fail.ID(0, "AUTH", 1, false, "AuthAnotherError")        // 0_AUTH_0001_D
+//	    // v0.0.2 - add new ID, must be next in sequence
+//	    AuthNewFeature         = fail.ID(0, "AUTH", 2, true, "AuthNewFeature")           // 0_AUTH_0002_S
+//	)
 func ID(level int, domain string, number int, static bool, name string) ErrorID {
-	return globalIDRegistry.ID(name, domain, static, level, number)
+	return globalIDRegistry.ID(level, domain, number, static, name)
 }
 
-var RuntimeIDInvalid = internalID(9, 16, true, "FailRuntimeIDInvalid")
-
 // ID creates a new trusted ErrorID for this registry
-func (r *IDRegistry) ID(name, domain string, static bool, level, number int) ErrorID {
+func (r *IDRegistry) ID(level int, domain string, number int, static bool, name string) ErrorID {
 	// Critical safety check: ID() must only be called during init/var time
 	r.mu.Lock()
 	allowRuntime := r.allowRuntimeRegistration
@@ -209,16 +234,89 @@ func (r *IDRegistry) ID(name, domain string, static bool, level, number int) Err
 		}
 	}
 
-	// Validation 4: Number must be unique within domain+type
-	numberKey := fmt.Sprintf("%s:%v:%d", domain, static, number)
-	if existing, exists := r.numberIndex[numberKey]; exists {
-		panic(fmt.Sprintf(
-			"number %d already used in domain '%s' (static=%v) by '%s' (%s)",
-			number, domain, static, existing.name, existing.String(),
-		))
+	groupKey := fmt.Sprintf("%s:%v", domain, static)
+	numList, exists := r.numberIndex[groupKey]
+	if !exists {
+		numList = list.New()
+		r.numberIndex[groupKey] = numList
 	}
 
-	// Create the ID with explicit number
+	// Walk the list to find insertion point, check for collision, and detect gaps
+	var insertAfter *list.Element
+	prevNum := -1
+	foundInsertion := false
+
+	for e := numList.Front(); e != nil; e = e.Next() {
+		node := e.Value.(numberNode)
+
+		// Check for collision
+		if node.number == number {
+			panic(fmt.Sprintf("number %d already used in %s (static=%v) by '%s' (%s)",
+				number, domain, static, node.name, node.id))
+		}
+
+		// Determine expected number at this position
+		expected := prevNum + 1
+
+		// Check for gap before this node
+		if node.number != expected {
+			// Gap detected between prevNum and node.number
+			// Are we filling this gap?
+			if !foundInsertion && number >= expected && number < node.number {
+				// We're filling this gap, continue to find exact insertion point
+			} else {
+				// Gap that we're not filling - panic immediately
+				if prevNum == -1 {
+					panic(fmt.Sprintf(
+						"fail: ID numbering gap detected in %s (static=%v): missing 0 (started at %d)",
+						domain, static, node.number,
+					))
+				} else {
+					panic(fmt.Sprintf(
+						"fail: ID numbering gap detected in %s (static=%v): missing %d (between %d and %d)",
+						domain, static, expected, prevNum, node.number,
+					))
+				}
+			}
+		}
+
+		// Find insertion point (maintain sorted order)
+		if !foundInsertion && node.number > number {
+			// We found where to insert (before this element)
+			foundInsertion = true
+			// Don't break - keep walking to check for more gaps
+		} else if node.number < number {
+			insertAfter = e
+		}
+
+		prevNum = node.number
+	}
+
+	// Check for gap at the end (after insertAfter)
+	if !foundInsertion {
+		// We're inserting at the end
+		expected := 0
+		if insertAfter != nil {
+			expected = insertAfter.Value.(numberNode).number + 1
+		}
+
+		if number != expected {
+			// Gap at the end that we're not filling
+			if insertAfter == nil {
+				panic(fmt.Sprintf(
+					"fail: ID numbering gap detected in %s (static=%v): missing 0 (inserting %d)",
+					domain, static, number,
+				))
+			} else {
+				lastNum := insertAfter.Value.(numberNode).number
+				panic(fmt.Sprintf(
+					"fail: ID numbering gap detected in %s (static=%v): missing %d (between %d and %d)",
+					domain, static, expected, lastNum, number,
+				))
+			}
+		}
+	}
+
 	id := ErrorID{
 		name:     name,
 		domain:   domain,
@@ -227,9 +325,15 @@ func (r *IDRegistry) ID(name, domain string, static bool, level, number int) Err
 		number:   number,
 		trusted:  true,
 	}
-	r.registeredIDs[name] = id
-	r.numberIndex[numberKey] = id
 
+	newNode := numberNode{number: number, name: name, id: id.String()}
+	if insertAfter == nil {
+		numList.PushFront(newNode)
+	} else {
+		numList.InsertAfter(newNode, insertAfter)
+	}
+
+	r.registeredIDs[name] = id
 	return id
 }
 
@@ -262,7 +366,7 @@ func (r *IDRegistry) internalID(level, number int, static bool, name string) Err
 	// Validation 2: Name must not already exist
 	if existing, exists := r.registeredIDs[name]; exists {
 		panic(fmt.Sprintf(
-			"internal error name '%s' already registered as %s",
+			"internal id name '%s' already registered as %s",
 			name, existing.String(),
 		))
 	}
@@ -278,16 +382,61 @@ func (r *IDRegistry) internalID(level, number int, static bool, name string) Err
 		}
 	}
 
-	// Validation 4: Number must be unique within FAIL domain+type
-	numberKey := fmt.Sprintf("%s:%v:%d", domain, static, number)
-	if existing, exists := r.numberIndex[numberKey]; exists {
-		panic(fmt.Sprintf(
-			"number %d from %s already used in internal domain '%s' (static=%v) by '%s'",
-			number, name, domain, static, existing.name,
-		))
+	groupKey := fmt.Sprintf("%s:%v", domain, static)
+	numList, exists := r.numberIndex[groupKey]
+	if !exists {
+		numList = list.New()
+		r.numberIndex[groupKey] = numList
 	}
 
-	// Create the ID
+	var insertAfter *list.Element
+	prevNum := -1
+	foundInsertion := false
+
+	for e := numList.Front(); e != nil; e = e.Next() {
+		node := e.Value.(numberNode)
+		if node.number == number {
+			panic(fmt.Sprintf("number %d already used internally by '%s'", number, node.name))
+		}
+
+		expected := prevNum + 1
+		if node.number != expected {
+			if !foundInsertion && number >= expected && number < node.number {
+				// filling gap
+			} else {
+				if prevNum == -1 {
+					panic(fmt.Sprintf("fail: internal ID gap: missing 0 (started at %d)", node.number))
+				} else {
+					panic(fmt.Sprintf("fail: internal ID gap: missing %d (between %d and %d)",
+						expected, prevNum, node.number))
+				}
+			}
+		}
+
+		if !foundInsertion && node.number > number {
+			foundInsertion = true
+		} else if node.number < number {
+			insertAfter = e
+		}
+		prevNum = node.number
+	}
+
+	if !foundInsertion {
+		expected := 0
+		if insertAfter != nil {
+			expected = insertAfter.Value.(numberNode).number + 1
+		}
+		if number != expected {
+			if insertAfter == nil {
+				panic(fmt.Sprintf("fail: internal ID gap: missing 0 (inserting %d)", number))
+			} else {
+				lastNum := insertAfter.Value.(numberNode).number
+				panic(fmt.Sprintf("fail: internal ID gap: missing %d (between %d and %d)",
+					expected, lastNum, number))
+			}
+		}
+	}
+
 	id := ErrorID{
 		name:     name,
 		domain:   domain,
@@ -296,9 +445,15 @@ func (r *IDRegistry) internalID(level, number int, static bool, name string) Err
 		number:   number,
 		trusted:  true,
 	}
-	r.registeredIDs[name] = id
-	r.numberIndex[numberKey] = id
 
+	newNode := numberNode{number: number, name: name, id: id.String()}
+	if insertAfter == nil {
+		numList.PushFront(newNode)
+	} else {
+		numList.InsertAfter(newNode, insertAfter)
+	}
+
+	r.registeredIDs[name] = id
 	return id
 }
 
@@ -307,7 +462,7 @@ func (r *IDRegistry) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.registeredIDs = make(map[string]ErrorID)
-	r.numberIndex = make(map[string]ErrorID)
+	r.numberIndex = make(map[string]*list.List)
 }
 
 // GetAllIDs returns all registered error IDs sorted by domain, type, then number
@@ -326,7 +481,7 @@ func (r *IDRegistry) GetAllIDs() []ErrorID {
 			return ids[i].domain < ids[j].domain
 		}
 		if ids[i].isStatic != ids[j].isStatic {
-			return ids[i].isStatic // true comes before false
+			return ids[i].isStatic
 		}
 		return ids[i].number < ids[j].number
 	})
@@ -338,7 +493,7 @@ func (r *IDRegistry) GetAllIDs() []ErrorID {
 func NewIDRegistry() *IDRegistry {
 	return &IDRegistry{
 		registeredIDs: make(map[string]ErrorID),
-		numberIndex:   make(map[string]ErrorID),
+		numberIndex:   make(map[string]*list.List),
 	}
 }
 
@@ -347,63 +502,52 @@ func hasPrefix(name, domain string) bool {
 	if len(name) < len(domain) {
 		return false
 	}
-
-	// Simple prefix check - compare first len(domain) characters
-	namePrefix := name[:len(domain)]
-
-	// Case-insensitive comparison
-	return toLower(namePrefix) == toLower(domain)
+	return toLower(name[:len(domain)]) == toLower(domain)
 }
 
 // toLower converts string to lowercase (simple ASCII version)
 func toLower(s string) string {
-	result := make([]byte, len(s))
+	b := make([]byte, len(s))
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c >= 'A' && c <= 'Z' {
-			c = c + ('a' - 'A')
+			c += 'a' - 'A'
 		}
-		result[i] = c
+		b[i] = c
 	}
-	return string(result)
+	return string(b)
 }
 
 // levenshteinDistance calculates the Levenshtein distance between two strings
 // This measures how similar two strings are (lower = more similar)
 func levenshteinDistance(s1, s2 string) int {
-	len1, len2 := len(s1), len(s2)
-
-	// Create matrix
-	matrix := make([][]int, len1+1)
-	for i := range matrix {
-		matrix[i] = make([]int, len2+1)
+	m, n := len(s1), len(s2)
+	if m == 0 {
+		return n
+	}
+	if n == 0 {
+		return m
 	}
 
-	// Initialize first row and column
-	for i := 0; i <= len1; i++ {
-		matrix[i][0] = i
-	}
-	for j := 0; j <= len2; j++ {
-		matrix[0][j] = j
+	prev := make([]int, n+1)
+	curr := make([]int, n+1)
+
+	for j := 0; j <= n; j++ {
+		prev[j] = j
 	}
 
-	// Fill matrix
-	for i := 1; i <= len1; i++ {
-		for j := 1; j <= len2; j++ {
+	for i := 1; i <= m; i++ {
+		curr[0] = i
+		for j := 1; j <= n; j++ {
 			cost := 0
 			if s1[i-1] != s2[j-1] {
 				cost = 1
 			}
-
-			matrix[i][j] = minInt(
-				matrix[i-1][j]+1,      // deletion
-				matrix[i][j-1]+1,      // insertion
-				matrix[i-1][j-1]+cost, // substitution
-			)
+			curr[j] = minInt(prev[j]+1, curr[j-1]+1, prev[j-1]+cost)
 		}
+		prev, curr = curr, prev
 	}
-
-	return matrix[len1][len2]
+	return prev[n]
 }
 
 func minInt(a, b, c int) int {
@@ -429,62 +573,39 @@ func (r *IDRegistry) ValidateIDs() {
 	r.validateNoGaps()
 }
 
+// FIXME make so that custom IDRegistries can tolerate gaps if clients wish
+
 // validateNoGaps checks for numbering gaps within each domain+type combination
 // Gaps indicate possible mistakes in manual numbering (skipped numbers)
 func (r *IDRegistry) validateNoGaps() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Group by domain+type
-	type groupKey struct {
-		domain string
-		static bool
-	}
-	groups := make(map[groupKey][]int) // key -> list of numbers
-
-	for _, id := range r.registeredIDs {
-		key := groupKey{domain: id.domain, static: id.isStatic}
-		groups[key] = append(groups[key], id.number)
-	}
-
-	// Check each group for gaps
-	var gaps []string
-	for key, numbers := range groups {
-		if len(numbers) <= 1 {
-			continue // Single ID or empty, no gaps possible
+	for groupKey, numList := range r.numberIndex {
+		if numList.Len() == 0 {
+			continue
 		}
 
-		sort.Ints(numbers)
+		var domain string
+		var static bool
+		_, err := fmt.Sscanf(groupKey, "%s:%v", &domain, &static)
+		if err != nil {
+			panic(fmt.Sprintf("[fail]: invalid group key, error while scanning: %v", err))
+		}
 
-		for i := 1; i < len(numbers); i++ {
-			if numbers[i] != numbers[i-1]+1 {
-				// Gap detected
-				expected := numbers[i-1] + 1
-				actual := numbers[i]
-				gaps = append(gaps, fmt.Sprintf(
-					"%s (static=%v): missing %d (jumped from %d to %d)",
-					key.domain, key.static, expected, numbers[i-1], actual,
-				))
+		expected := 0
+		for e := numList.Front(); e != nil; e = e.Next() {
+			node := e.Value.(numberNode)
+			if node.number != expected {
+				panic(fmt.Sprintf("[fail]: ID numbering gap in %s (static=%v): missing %d"+
+					"Hint: IDs must be numbered sequentially starting from 0 within each domain+type combination. "+
+					"Gaps indicate skipped numbers or future-proofing, which breaks the stability contract. "+
+					"If you want to allow gaps use a custom IDRegistry and a custom error Registry",
+					domain, static, expected))
 			}
+			expected = node.number + 1
 		}
 	}
-
-	if len(gaps) > 0 {
-		panic(fmt.Sprintf(
-			"fail: ID numbering gaps detected (missing numbers):\n%s\n"+
-				"Hint: IDs must be numbered sequentially starting from 0 within each domain+type combination. "+
-				"Gaps indicate skipped numbers or future-proofing, which breaks the stability contract.",
-			formatGaps(gaps),
-		))
-	}
-}
-
-func formatGaps(gaps []string) string {
-	result := ""
-	for _, g := range gaps {
-		result += "  - " + g + "\n"
-	}
-	return result
 }
 
 // ExportIDList returns all registered error IDs as JSON bytes
@@ -518,7 +639,7 @@ func (r *IDRegistry) ExportIDList() ([]byte, error) {
 			return ids[i].domain < ids[j].domain
 		}
 		if ids[i].isStatic != ids[j].isStatic {
-			return ids[i].isStatic // true comes before false
+			return ids[i].isStatic
 		}
 		return ids[i].number < ids[j].number
 	})

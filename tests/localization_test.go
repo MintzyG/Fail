@@ -9,9 +9,9 @@ import (
 
 var (
 	LocTestID      = fail.ID(0, "LOC", 0, true, "LocalizationTestError")
-	LocTemplateID  = fail.ID(0, "LOC", 1, false, "LocTemplateError")
-	LocArgID       = fail.ID(0, "LOC", 2, false, "LocArgError")
-	LocBadFormatID = fail.ID(0, "LOC", 3, false, "LocBadFormatError")
+	LocTemplateID  = fail.ID(0, "LOC", 0, false, "LocTemplateError")
+	LocArgID       = fail.ID(0, "LOC", 1, false, "LocArgError")
+	LocBadFormatID = fail.ID(0, "LOC", 2, false, "LocBadFormatError")
 )
 
 func TestLocalization_RegisterAndLocalize(t *testing.T) {

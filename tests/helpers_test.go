@@ -8,7 +8,7 @@ import (
 	"github.com/MintzyG/fail"
 )
 
-var HelperID = fail.ID(0, "HELP", 1, false, "HelperError")
+var HelperID = fail.ID(0, "HELP", 0, false, "HelperError")
 
 func TestHelpers_Is(t *testing.T) {
 	fail.Register(fail.ErrorDefinition{ID: HelperID})
