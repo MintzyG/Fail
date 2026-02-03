@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/MintzyG/fail/v2"
+	"github.com/MintzyG/fail/v3"
 )
 
 var (

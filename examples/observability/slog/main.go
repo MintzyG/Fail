@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/MintzyG/fail/v2"
+	"github.com/MintzyG/fail/v3"
 )
 
 var (

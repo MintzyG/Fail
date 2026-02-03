@@ -3,7 +3,7 @@ module examples
 go 1.24.0
 
 require (
-	github.com/MintzyG/fail/v2 v2.0.1
+	github.com/MintzyG/fail/v3 v3.0.0
 	github.com/jackc/pgconn v1.14.3
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0

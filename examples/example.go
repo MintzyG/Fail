@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/MintzyG/fail/v2"
+	"github.com/MintzyG/fail/v3"
 )
 
 // ============================================================================
