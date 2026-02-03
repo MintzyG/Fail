@@ -165,7 +165,7 @@ func (g *ErrorGroup) ToError() *Error {
 		if i > 0 {
 			summary.WriteString(", ")
 		}
-		if e.IsTrusted() {
+		if e.IsRegistered() {
 			summary.WriteString(e.ID.String())
 		} else {
 			summary.WriteString(e.Error())
@@ -191,7 +191,7 @@ func (g *ErrorGroup) ToError() *Error {
 func extractIDs(errs []*Error) []string {
 	ids := make([]string, len(errs))
 	for i, e := range errs {
-		if e.IsTrusted() {
+		if e.IsRegistered() {
 			ids[i] = e.ID.String()
 		} else {
 			ids[i] = "UNTRUSTED"
