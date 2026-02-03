@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MintzyG/fail/v2"
+	"github.com/MintzyG/fail/v3"
 )
 
 var GroupID = fail.ID(0, "GROUP", 0, false, "GroupError")
